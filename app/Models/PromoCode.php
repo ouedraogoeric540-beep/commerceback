@@ -15,12 +15,14 @@ class PromoCode extends Model
         'max_uses',
         'used_count',
         'is_active',
+        'expires_at',
     ];
 
     protected $casts = [
         'value' => 'decimal:2',
         'min_amount' => 'decimal:2',
         'is_active' => 'boolean',
+        'expires_at' => 'datetime',
     ];
 
     public function shop()

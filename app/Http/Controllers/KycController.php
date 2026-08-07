@@ -38,6 +38,10 @@ class KycController extends Controller
             'status' => 'pending'
         ]);
 
+        if ($shop->status === 'rejected') {
+            $shop->update(['status' => 'pending']);
+        }
+
         return response()->json([
             'message' => 'Document soumis avec succès.',
             'kyc' => $kyc,

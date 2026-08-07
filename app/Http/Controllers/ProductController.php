@@ -5,6 +5,9 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\Product;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 
 class ProductController extends Controller
 {
@@ -15,7 +18,13 @@ class ProductController extends Controller
             return response()->json(['message' => 'Boutique introuvable.'], 404);
         }
 
-        $products = $shop->products()->latest()->get();
+        $query = $shop->products()->with('globalCategory')->latest();
+        
+        if ($request->filled('search')) {
+            $query->where('title', 'like', '%' . $request->search . '%');
+        }
+
+        $products = $query->paginate(15);
         return response()->json(['products' => $products]);
     }
 
@@ -44,27 +53,27 @@ class ProductController extends Controller
 
             switch ($request->product_type) {
                 case 'image':
-                    $digitalFileRule .= '|mimes:jpeg,png,jpg,gif,svg,webp';
+                    $digitalFileRule .= '|mimetypes:image/jpeg,image/png,image/gif,image/webp,image/svg+xml';
                     break;
                 case 'ebook':
-                    $digitalFileRule .= '|mimes:pdf';
+                    $digitalFileRule .= '|mimetypes:application/pdf,application/epub+zip';
                     break;
                 case 'software':
-                    $digitalFileRule .= '|mimes:zip,rar,7z,tar,gz';
+                    $digitalFileRule .= '|mimetypes:application/zip,application/x-rar-compressed,application/x-7z-compressed,application/gzip,application/x-tar';
                     break;
                 case 'course':
-                    $digitalFileRule .= '|mimes:mp4,avi,mov,wmv,mp3,wav';
+                    $digitalFileRule .= '|mimetypes:video/mp4,video/x-msvideo,video/quicktime,audio/mpeg,audio/wav';
                     break;
                 case 'file':
                 default:
-                    $digitalFileRule .= '|mimes:zip,rar,7z,pdf,doc,docx,xls,xlsx,txt';
+                    $digitalFileRule .= '|mimetypes:application/zip,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/plain';
                     break;
             }
             $rules['digital_file'] = $digitalFileRule;
         }
 
         $request->validate($rules, [
-            'digital_file.mimes' => 'Le format du fichier uploader est invalide pour ce type de produit.',
+            'digital_file.mimetypes' => 'Le format du fichier uploadé est invalide ou non sécurisé pour ce type de produit.',
             'product_type.in' => 'Le type de produit est invalide.'
         ]);
 
@@ -77,34 +86,55 @@ class ProductController extends Controller
         }
 
         $coverPath = null;
-        if ($request->hasFile('cover_image')) {
-            $coverPath = $request->file('cover_image')->store('products/covers', 'public');
-        }
-
         $digitalFilePath = null;
-        if ($request->hasFile('digital_file')) {
-            // Stockage PRIVÉ pour le fichier numérique
-            $digitalFilePath = $request->file('digital_file')->store('products/digital_files');
+
+        try {
+            DB::beginTransaction();
+
+            if ($request->hasFile('cover_image')) {
+                $coverPath = $request->file('cover_image')->store('products/covers', 'public');
+            }
+
+            if ($request->hasFile('digital_file')) {
+                // Stockage PRIVÉ pour le fichier numérique
+                $digitalFilePath = $request->file('digital_file')->store('products/digital_files');
+            }
+
+            $product = Product::create([
+                'shop_id' => $shop->id,
+                'product_type' => $request->product_type,
+                'title' => $request->title,
+                'slug' => $slug,
+                'description' => $request->description,
+                'price' => $request->price,
+                'stock' => $request->stock,
+                'cover_image' => $coverPath,
+                'digital_file' => $digitalFilePath,
+                'attributes' => $request->input('attributes') ? json_decode($request->input('attributes'), true) : null,
+                'is_active' => true,
+            ]);
+
+            DB::commit();
+
+            return response()->json([
+                'message' => 'Produit ajouté avec succès.',
+                'product' => $product
+            ], 201);
+        } catch (\Exception $e) {
+            DB::rollBack();
+
+            // Nettoyage des fichiers temporaires
+            if ($coverPath) {
+                Storage::disk('public')->delete($coverPath);
+                Log::info("Fichier orphelin supprimé suite à erreur de création (cover): {$coverPath}");
+            }
+            if ($digitalFilePath) {
+                Storage::delete($digitalFilePath);
+                Log::info("Fichier orphelin supprimé suite à erreur de création (digital): {$digitalFilePath}");
+            }
+
+            return response()->json(['message' => 'Erreur lors de la création du produit.'], 500);
         }
-
-        $product = Product::create([
-            'shop_id' => $shop->id,
-            'product_type' => $request->product_type,
-            'title' => $request->title,
-            'slug' => $slug,
-            'description' => $request->description,
-            'price' => $request->price,
-            'stock' => $request->stock,
-            'cover_image' => $coverPath,
-            'digital_file' => $digitalFilePath,
-            'attributes' => $request->input('attributes') ? json_decode($request->input('attributes'), true) : null,
-            'is_active' => true,
-        ]);
-
-        return response()->json([
-            'message' => 'Produit ajouté avec succès.',
-            'product' => $product
-        ], 201);
     }
 
     /**
@@ -163,27 +193,27 @@ class ProductController extends Controller
 
             switch ($request->product_type) {
                 case 'image':
-                    $digitalFileRule .= '|mimes:jpeg,png,jpg,gif,svg,webp';
+                    $digitalFileRule .= '|mimetypes:image/jpeg,image/png,image/gif,image/webp,image/svg+xml';
                     break;
                 case 'ebook':
-                    $digitalFileRule .= '|mimes:pdf';
+                    $digitalFileRule .= '|mimetypes:application/pdf,application/epub+zip';
                     break;
                 case 'software':
-                    $digitalFileRule .= '|mimes:zip,rar,7z,tar,gz';
+                    $digitalFileRule .= '|mimetypes:application/zip,application/x-rar-compressed,application/x-7z-compressed,application/gzip,application/x-tar';
                     break;
                 case 'course':
-                    $digitalFileRule .= '|mimes:mp4,avi,mov,wmv,mp3,wav';
+                    $digitalFileRule .= '|mimetypes:video/mp4,video/x-msvideo,video/quicktime,audio/mpeg,audio/wav';
                     break;
                 case 'file':
                 default:
-                    $digitalFileRule .= '|mimes:zip,rar,7z,pdf,doc,docx,xls,xlsx,txt';
+                    $digitalFileRule .= '|mimetypes:application/zip,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/plain';
                     break;
             }
             $rules['digital_file'] = $digitalFileRule;
         }
 
         $request->validate($rules, [
-            'digital_file.mimes' => 'Le format du fichier uploader est invalide pour ce type de produit.',
+            'digital_file.mimetypes' => 'Le format du fichier uploadé est invalide ou non sécurisé pour ce type de produit.',
             'product_type.in' => 'Le type de produit est invalide.'
         ]);
 
@@ -198,33 +228,58 @@ class ProductController extends Controller
             $product->slug = $slug;
         }
 
-        if ($request->hasFile('cover_image')) {
-            if ($product->cover_image) {
-                \Illuminate\Support\Facades\Storage::disk('public')->delete($product->cover_image);
+        $newCoverPath = null;
+        $newDigitalFilePath = null;
+
+        try {
+            DB::beginTransaction();
+
+            if ($request->hasFile('cover_image')) {
+                $newCoverPath = $request->file('cover_image')->store('products/covers', 'public');
+                if ($product->cover_image) {
+                    Storage::disk('public')->delete($product->cover_image);
+                    Log::info("Ancienne image de couverture supprimée (mise à jour) : {$product->cover_image}");
+                }
+                $product->cover_image = $newCoverPath;
             }
-            $product->cover_image = $request->file('cover_image')->store('products/covers', 'public');
-        }
 
-        if ($request->hasFile('digital_file')) {
-            if ($product->digital_file) {
-                \Illuminate\Support\Facades\Storage::delete($product->digital_file);
+            if ($request->hasFile('digital_file')) {
+                $newDigitalFilePath = $request->file('digital_file')->store('products/digital_files');
+                if ($product->digital_file) {
+                    Storage::delete($product->digital_file);
+                    Log::info("Ancien fichier numérique supprimé (mise à jour) : {$product->digital_file}");
+                }
+                $product->digital_file = $newDigitalFilePath;
             }
-            $product->digital_file = $request->file('digital_file')->store('products/digital_files');
+
+            $product->title = $request->title;
+            $product->product_type = $request->product_type;
+            $product->description = $request->description;
+            $product->price = $request->price;
+            $product->stock = $request->stock;
+            $product->attributes = $request->input('attributes') ? json_decode($request->input('attributes'), true) : null;
+            
+            $product->save();
+            DB::commit();
+
+            return response()->json([
+                'message' => 'Produit mis à jour avec succès.',
+                'product' => $product
+            ]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+
+            if ($newCoverPath) {
+                Storage::disk('public')->delete($newCoverPath);
+                Log::info("Image de couverture orpheline supprimée (rollback) : {$newCoverPath}");
+            }
+            if ($newDigitalFilePath) {
+                Storage::delete($newDigitalFilePath);
+                Log::info("Fichier numérique orphelin supprimé (rollback) : {$newDigitalFilePath}");
+            }
+
+            return response()->json(['message' => 'Erreur lors de la mise à jour du produit.'], 500);
         }
-
-        $product->title = $request->title;
-        $product->product_type = $request->product_type;
-        $product->description = $request->description;
-        $product->price = $request->price;
-        $product->stock = $request->stock;
-        $product->attributes = $request->input('attributes') ? json_decode($request->input('attributes'), true) : null;
-        
-        $product->save();
-
-        return response()->json([
-            'message' => 'Produit mis à jour avec succès.',
-            'product' => $product
-        ]);
     }
 
     public function destroy(Request $request, $id)
@@ -239,18 +294,32 @@ class ProductController extends Controller
             return response()->json(['message' => 'Produit introuvable.'], 404);
         }
 
-        if ($product->cover_image) {
-            \Illuminate\Support\Facades\Storage::disk('public')->delete($product->cover_image);
+        try {
+            DB::beginTransaction();
+
+            $coverImage = $product->cover_image;
+            $digitalFile = $product->digital_file;
+
+            $product->delete();
+
+            if ($coverImage) {
+                Storage::disk('public')->delete($coverImage);
+                Log::info("Image de couverture supprimée (suppression produit) : {$coverImage}");
+            }
+
+            if ($digitalFile) {
+                Storage::delete($digitalFile);
+                Log::info("Fichier numérique supprimé (suppression produit) : {$digitalFile}");
+            }
+
+            DB::commit();
+
+            return response()->json([
+                'message' => 'Produit supprimé avec succès.'
+            ]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json(['message' => 'Erreur lors de la suppression.'], 500);
         }
-
-        if ($product->digital_file) {
-            \Illuminate\Support\Facades\Storage::delete($product->digital_file);
-        }
-
-        $product->delete();
-
-        return response()->json([
-            'message' => 'Produit supprimé avec succès.'
-        ]);
     }
 }

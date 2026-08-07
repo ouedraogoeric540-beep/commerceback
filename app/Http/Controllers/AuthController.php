@@ -56,6 +56,12 @@ class AuthController extends Controller
             ]);
         }
 
+        if ($user->status === 'blocked') {
+            throw ValidationException::withMessages([
+                'email' => ['Votre compte a été bloqué par un administrateur.'],
+            ]);
+        }
+
         // Supprimer les anciens tokens pour éviter l'accumulation (Optionnel mais recommandé)
         $user->tokens()->delete();
 

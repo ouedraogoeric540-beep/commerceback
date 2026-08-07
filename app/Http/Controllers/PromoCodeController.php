@@ -38,6 +38,7 @@ class PromoCodeController extends Controller
             'value' => 'required|numeric|min:0',
             'min_amount' => 'nullable|numeric|min:0',
             'max_uses' => 'nullable|integer|min:1',
+            'expires_at' => 'nullable|date',
         ]);
 
         $code = strtoupper(trim($request->code));
@@ -54,6 +55,7 @@ class PromoCodeController extends Controller
             'value' => $request->value,
             'min_amount' => $request->min_amount,
             'max_uses' => $request->max_uses,
+            'expires_at' => $request->expires_at ? date('Y-m-d H:i:s', strtotime($request->expires_at)) : null,
             'is_active' => true,
         ]);
 
@@ -105,6 +107,7 @@ class PromoCodeController extends Controller
         $code = strtoupper(trim($request->code));
         $promoCode = PromoCode::whereIn('shop_id', $request->shop_ids)
             ->where('code', $code)
+            ->lockForUpdate()
             ->first();
 
         if (!$promoCode) {
@@ -117,6 +120,10 @@ class PromoCodeController extends Controller
 
         if ($promoCode->max_uses !== null && $promoCode->used_count >= $promoCode->max_uses) {
             return response()->json(['message' => 'Ce code promo a atteint sa limite d\'utilisation.'], 400);
+        }
+
+        if ($promoCode->expires_at && now()->greaterThan($promoCode->expires_at)) {
+            return response()->json(['message' => 'Ce code promo a expiré.'], 400);
         }
 
         return response()->json([

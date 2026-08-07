@@ -4,7 +4,11 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\Shop;
+use App\Models\User;
+use App\Models\KycDocument;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\DB;
 
 class ShopController extends Controller
 {
@@ -15,7 +19,14 @@ class ShopController extends Controller
     {
         $request->validate([
             'name' => 'required|string|max:255|unique:shops,name',
-            'description' => 'required|string',
+            'description' => 'nullable|string',
+            'support_phone' => 'required|string|max:50',
+            'address' => 'required|string|max:255',
+            'logo' => 'nullable|image|mimes:jpeg,png,jpg,svg|max:2048',
+            'primary_color' => 'nullable|string|max:20',
+            'kyc_type' => 'required|in:id_card,passport,company_registration,proof_of_address',
+            'document_recto' => 'required|file|mimes:pdf,jpg,jpeg,png|max:5120',
+            'document_verso' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
         ]);
 
         $user = $request->user();
@@ -30,21 +41,124 @@ class ShopController extends Controller
             'name' => $request->name,
             'slug' => Str::slug($request->name),
             'description' => $request->description,
+            'support_phone' => $request->support_phone,
+            'address' => $request->address,
             'status' => 'pending',
         ]);
 
-        // Optionnel : On peut lui donner le rôle Vendeur immédiatement
-        // pour qu'il puisse accéder à son interface, 
-        // mais ses actions seront restreintes par le statut 'pending' de sa boutique.
-        if (!$user->hasRole('Vendeur')) {
-            $user->assignRole('Vendeur');
+        if ($request->hasFile('logo')) {
+            $shop->logo = $request->file('logo')->store('logos', 'public');
         }
 
+        if ($request->filled('primary_color')) {
+            $shop->settings = ['primary_color' => $request->primary_color];
+        }
+
+        $shop->save();
+
+        $rectoPath = $request->file('document_recto')->store('kyc', 'public');
+        $versoPath = $request->hasFile('document_verso') ? $request->file('document_verso')->store('kyc', 'public') : null;
+
+        KycDocument::create([
+            'shop_id' => $shop->id,
+            'type' => $request->kyc_type,
+            'document_recto' => $rectoPath,
+            'document_verso' => $versoPath,
+            'status' => 'pending'
+        ]);
+
         return response()->json([
-            'message' => 'Boutique créée avec succès. En attente de soumission KYC.',
+            'message' => 'Demande envoyée avec succès. L\'administrateur vous répondra sous 72h maximum.',
             'shop' => $shop,
             'user' => $user->load('roles', 'shop') // on renvoie le user mis à jour
         ], 201);
+    }
+
+    /**
+     * Création de compte et boutique simultanée pour les visiteurs (Guest)
+     */
+    public function onboardGuest(Request $request)
+    {
+        $request->validate([
+            // User validation
+            'user_name' => 'required|string|max:255',
+            'email' => 'required|string|email|max:255|unique:users,email',
+            'password' => 'required|string|min:8',
+            
+            // Shop validation
+            'name' => 'required|string|max:255|unique:shops,name',
+            'description' => 'nullable|string',
+            'support_phone' => 'required|string|max:50',
+            'address' => 'required|string|max:255',
+            'logo' => 'nullable|image|mimes:jpeg,png,jpg,svg|max:2048',
+            'primary_color' => 'nullable|string|max:20',
+            'kyc_type' => 'required|in:id_card,passport,company_registration,proof_of_address',
+            'document_recto' => 'required|file|mimes:pdf,jpg,jpeg,png|max:5120',
+            'document_verso' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
+        ]);
+
+        try {
+            DB::beginTransaction();
+
+            // 1. Créer l'utilisateur
+            $user = User::create([
+                'name' => $request->user_name,
+                'email' => $request->email,
+                'password' => Hash::make($request->password),
+            ]);
+
+            // Assigner le rôle Vendeur
+            $user->assignRole('Vendeur');
+
+            // 2. Créer la boutique
+            $shop = Shop::create([
+                'user_id' => $user->id,
+                'name' => $request->name,
+                'slug' => Str::slug($request->name),
+                'description' => $request->description,
+                'support_phone' => $request->support_phone,
+                'address' => $request->address,
+                'status' => 'pending',
+            ]);
+
+            if ($request->hasFile('logo')) {
+                $shop->logo = $request->file('logo')->store('logos', 'public');
+            }
+
+            if ($request->filled('primary_color')) {
+                $shop->settings = ['primary_color' => $request->primary_color];
+            }
+
+            $shop->save();
+
+            $rectoPath = $request->file('document_recto')->store('kyc', 'public');
+            $versoPath = $request->hasFile('document_verso') ? $request->file('document_verso')->store('kyc', 'public') : null;
+
+            KycDocument::create([
+                'shop_id' => $shop->id,
+                'type' => $request->kyc_type,
+                'document_recto' => $rectoPath,
+                'document_verso' => $versoPath,
+                'status' => 'pending'
+            ]);
+
+            // 3. Générer le token
+            $token = $user->createToken('auth_token')->plainTextToken;
+
+            DB::commit();
+
+            return response()->json([
+                'message' => 'Compte et boutique créés avec succès.',
+                'access_token' => $token,
+                'token_type' => 'Bearer',
+                'user' => $user->load('roles', 'shop'),
+                'shop' => $shop
+            ], 201);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json(['message' => 'Une erreur est survenue lors de la création.', 'error' => $e->getMessage()], 500);
+        }
     }
 
     /**
@@ -79,6 +193,7 @@ class ShopController extends Controller
             'description' => 'required|string',
             'slogan' => 'nullable|string|max:255',
             'logo' => 'nullable|image|mimes:jpeg,png,jpg,svg|max:2048',
+            'cover' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:5120',
         ]);
 
         $shop->slug = Str::slug($request->slug);
@@ -86,9 +201,13 @@ class ShopController extends Controller
         $shop->slogan = $request->slogan;
 
         if ($request->hasFile('logo')) {
-            // Stockage public pour le logo
             $logoPath = $request->file('logo')->store('logos', 'public');
             $shop->logo = $logoPath;
+        }
+
+        if ($request->hasFile('cover')) {
+            $coverPath = $request->file('cover')->store('covers', 'public');
+            $shop->cover = $coverPath;
         }
 
         $shop->save();
@@ -145,6 +264,11 @@ class ShopController extends Controller
             'settings.social_twitter' => 'nullable|url|max:255',
             'settings.social_tiktok' => 'nullable|url|max:255',
             'settings.post_sale_message' => 'nullable|string',
+            'settings.business_hours' => 'nullable|string',
+            'settings.return_policy' => 'nullable|string',
+            'settings.terms_of_sale' => 'nullable|string',
+            'settings.accepted_payments' => 'nullable|array',
+            'settings.storefront_sections' => 'nullable|array',
         ]);
 
         $shop->settings = $request->settings;

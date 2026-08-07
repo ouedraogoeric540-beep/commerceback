@@ -11,9 +11,21 @@ use App\Models\PromoCode;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Storage;
+use App\Models\User;
+use Barryvdh\DomPDF\Facade\Pdf;
+use App\Notifications\OrderPlacedNotification;
+use App\Notifications\NewOrderNotification;
+use App\Notifications\OutOfStockNotification;
+use App\Services\OrderStateMachineService;
 
 class OrderController extends Controller
 {
+    protected OrderStateMachineService $stateMachine;
+
+    public function __construct(OrderStateMachineService $stateMachine)
+    {
+        $this->stateMachine = $stateMachine;
+    }
     public function checkout(Request $request)
     {
         $validator = Validator::make($request->all(), [
@@ -41,7 +53,7 @@ class OrderController extends Controller
 
             // Verification des stocks et calcul du total
             foreach ($request->cart_items as $item) {
-                $product = Product::lockForUpdate()->find($item['id']);
+                $product = Product::with('shop')->lockForUpdate()->find($item['id']);
 
                 if (!$product || !$product->is_active || $product->shop->status !== 'approved') {
                     throw new \Exception("Le produit '{$item['title']}' n'est plus disponible.");
@@ -64,6 +76,10 @@ class OrderController extends Controller
                 if ($product->stock !== null) {
                     $product->stock -= $item['quantity'];
                     $product->save();
+                    
+                    if ($product->stock <= 0 && $product->shop && $product->shop->user) {
+                        $product->shop->user->notify(new OutOfStockNotification($product));
+                    }
                 }
             }
 
@@ -75,7 +91,7 @@ class OrderController extends Controller
                 $code = strtoupper(trim($request->promo_code['code']));
                 $shopId = $request->promo_code['shop_id'];
 
-                $promo = PromoCode::where('shop_id', $shopId)->where('code', $code)->first();
+                $promo = PromoCode::where('shop_id', $shopId)->where('code', $code)->lockForUpdate()->first();
 
                 if ($promo && $promo->is_active && ($promo->max_uses === null || $promo->used_count < $promo->max_uses)) {
                     // Calculer le sous-total de la boutique concernée
@@ -127,9 +143,9 @@ class OrderController extends Controller
                 'last_name' => $request->last_name,
                 'total_amount' => $totalAmount,
                 'promo_code' => $appliedPromo ? $appliedPromo->code : null,
-                'status' => 'paid',
+                'status' => 'pending',
                 'payment_method' => $request->payment_method,
-                'payment_id' => 'simulated_txn_' . uniqid(),
+                'payment_id' => null,
             ]);
 
             // Création des OrderItems
@@ -137,56 +153,25 @@ class OrderController extends Controller
                 $order->items()->create($data);
             }
 
-            // Incrémenter le compteur du code promo s'il a été appliqué
-            if ($appliedPromo) {
-                $appliedPromo->increment('used_count');
-            }
-
+            // L'incrémentation de used_count est déléguée au PaymentService lors de la confirmation finale
             DB::commit();
-
-            // Récupération des messages de remerciement uniques des boutiques
-            $shopMessages = Product::whereIn('id', collect($request->cart_items)->pluck('id'))
-                ->with('shop')
-                ->get()
-                ->map(function ($product) {
-                    return $product->shop->settings['post_sale_message'] ?? null;
-                })
-                ->filter()
-                ->unique()
-                ->values();
+            
+            // On initialise le paiement via la Factory
+            // Dans le futur, on passera 'stripe' ou 'cinetpay' selon $request->payment_method
+            $provider = 'simulated'; 
+            $paymentProvider = \App\Services\Payment\PaymentFactory::create($provider);
+            
+            $paymentUrl = $paymentProvider->initializePayment($order, env('FRONTEND_URL') . '/paiement/reussi', env('FRONTEND_URL') . '/paiement');
 
             return response()->json([
-                'message' => 'Commande passée avec succès',
-                'order_id' => $order->id,
-                'post_sale_messages' => $shopMessages
-            ], 201);
+                'message' => 'Commande initiée, en attente de paiement',
+                'payment_url' => $paymentUrl
+            ], 200);
 
         } catch (\Exception $e) {
             DB::rollBack();
             return response()->json(['message' => $e->getMessage()], 400);
         }
-    }
-
-    public function getSellerOrders(Request $request)
-    {
-        $shop = $request->user()->shop;
-
-        if (!$shop) {
-            return response()->json(['message' => 'Aucune boutique trouvée.'], 404);
-        }
-
-        // Récupérer toutes les lignes de commande (OrderItems) qui appartiennent à cette boutique
-        // avec les informations de la commande parent et du produit
-        $orderItems = OrderItem::where('shop_id', $shop->id)
-            ->with(['order', 'product'])
-            ->orderBy('created_at', 'desc')
-            ->get();
-
-        // On peut formater un peu pour que ce soit plus facile à afficher côté frontend
-        // On regroupe par commande ou on renvoie tel quel
-        return response()->json([
-            'orders' => $orderItems
-        ]);
     }
 
     public function getBuyerStats(Request $request)
@@ -325,14 +310,45 @@ class OrderController extends Controller
     {
         $user = $request->user();
 
-        // On récupère les commandes de l'acheteur
-        // On pourrait chercher par user_id, mais pour l'instant la commande n'a pas forcément le user_id dans notre modèle actuel.
-        // On va vérifier si le user_id existe sur 'orders', sinon on filtre par email.
-        
-        $orders = Order::where('email', $user->email)
+        $query = Order::where('email', $user->email)
             ->with(['items.product.shop', 'items.product'])
-            ->orderBy('created_at', 'desc')
-            ->get();
+            ->orderBy('created_at', 'desc');
+
+        $orders = $query->paginate(15);
+
+        return response()->json([
+            'orders' => $orders
+        ]);
+    }
+
+    public function getSellerOrders(Request $request)
+    {
+        $shop = $request->user()->shop;
+
+        if (!$shop) {
+            return response()->json(['message' => 'Aucune boutique trouvée.'], 404);
+        }
+
+        $query = OrderItem::where('shop_id', $shop->id)
+            ->with(['order', 'product'])
+            ->orderBy('created_at', 'desc');
+
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->whereHas('order', function($q) use ($search) {
+                $q->where('email', 'like', "%{$search}%")
+                  ->orWhere('first_name', 'like', "%{$search}%")
+                  ->orWhere('last_name', 'like', "%{$search}%");
+            })->orWhereHas('product', function($q) use ($search) {
+                $q->where('title', 'like', "%{$search}%");
+            });
+        }
+
+        if ($request->filled('status') && $request->status !== 'all') {
+            $query->where('status', $request->status);
+        }
+
+        $orders = $query->paginate(15);
 
         return response()->json([
             'orders' => $orders
@@ -374,5 +390,161 @@ class OrderController extends Controller
         $downloadName = $product->slug . '.' . $extension;
 
         return Storage::download($product->digital_file, $downloadName);
+    }
+
+    public function downloadInvoice(Request $request, $orderId)
+    {
+        $user = $request->user();
+
+        // 1. Fetch order and verify ownership
+        $order = Order::where('id', $orderId)->where('email', $user->email)
+            ->with(['items.product.shop'])
+            ->first();
+
+        if (!$order) {
+            return response()->json(['message' => 'Commande introuvable ou non autorisée.'], 403);
+        }
+
+        // 2. Group items by shop
+        $shops = [];
+        foreach ($order->items as $item) {
+            if ($item->product && $item->product->shop) {
+                $shopId = $item->product->shop->id;
+                if (!isset($shops[$shopId])) {
+                    $shops[$shopId] = [
+                        'shop' => $item->product->shop,
+                        'items' => [],
+                        'subtotal' => 0,
+                    ];
+                }
+                $shops[$shopId]['items'][] = $item;
+                $shops[$shopId]['subtotal'] += $item->price * $item->quantity;
+            }
+        }
+
+        // 3. Generate PDF
+        $pdf = Pdf::loadView('invoices.order', compact('order', 'shops', 'user'));
+
+        // 4. Return download
+        return $pdf->download('facture_' . $order->id . '.pdf');
+    }
+    public function publicDownloadInvoice($id)
+    {
+        $order = Order::with(['items.product.shop'])->find($id);
+
+        if (!$order) {
+            return response()->json(['message' => 'Commande introuvable.'], 404);
+        }
+
+        // Sécurité basique pour achat invité (limite à 24h)
+        if ($order->created_at->diffInHours(now()) > 24) {
+            return response()->json(['message' => 'Lien expiré pour des raisons de sécurité'], 403);
+        }
+
+        $shops = [];
+        foreach ($order->items as $item) {
+            if ($item->product && $item->product->shop) {
+                $shopId = $item->product->shop->id;
+                if (!isset($shops[$shopId])) {
+                    $shops[$shopId] = [
+                        'shop' => $item->product->shop,
+                        'items' => [],
+                        'subtotal' => 0,
+                    ];
+                }
+                $shops[$shopId]['items'][] = $item;
+                $shops[$shopId]['subtotal'] += $item->price * $item->quantity;
+            }
+        }
+
+        $user = null;
+        $pdf = Pdf::loadView('invoices.order', compact('order', 'shops', 'user'));
+        return $pdf->download('facture_' . $order->id . '.pdf');
+    }
+
+    public function successDetails($id)
+    {
+        $order = Order::with(['items.product.shop'])->find($id);
+        if (!$order) {
+            return response()->json(['message' => 'Not found'], 404);
+        }
+        
+        // Sécurité basique pour achat invité (limite à 24h)
+        if ($order->created_at->diffInHours(now()) > 24) {
+            return response()->json(['message' => 'Lien expiré pour des raisons de sécurité'], 403);
+        }
+
+        $messages = [];
+        $downloads = [];
+        foreach ($order->items as $item) {
+            if ($item->product && $item->product->shop) {
+                $msg = $item->product->shop->settings['post_sale_message'] ?? null;
+                if ($msg && !in_array($msg, $messages)) {
+                    $messages[] = $msg;
+                }
+            }
+            
+            $tokenObj = \App\Models\DownloadToken::where('order_item_id', $item->id)->first();
+            if ($tokenObj && $tokenObj->isValid()) {
+                $downloads[] = [
+                    'product_title' => $item->product->title ?? 'Produit numérique',
+                    'url' => url('/api/downloads/' . $tokenObj->token),
+                    'expires_at' => $tokenObj->expires_at
+                ];
+            }
+        }
+
+        return response()->json([
+            'order' => [
+                'id' => $order->id,
+                'email' => $order->email,
+                'status' => $order->status,
+            ],
+            'messages' => $messages,
+            'downloads' => $downloads
+        ]);
+    }
+
+    public function updateStatus(Request $request, $id)
+    {
+        $request->validate([
+            'status' => 'required|string',
+        ]);
+
+        $user = $request->user();
+        if (!$user->shop) {
+            return response()->json(['message' => 'Non autorisé.'], 403);
+        }
+
+        $orderItem = OrderItem::find($id);
+
+        if (!$orderItem) {
+            return response()->json(['message' => 'Article de commande introuvable.'], 404);
+        }
+
+        if ($orderItem->shop_id !== $user->shop->id) {
+            return response()->json(['message' => 'Cet article n\'appartient pas à votre boutique.'], 403);
+        }
+
+        try {
+            // State Machine Validation
+            $this->stateMachine->assertCanTransition($orderItem->status, $request->status);
+            
+            $orderItem->status = $request->status;
+            $orderItem->save();
+
+            // Optionnel : Notifier l'acheteur
+            // if ($request->status === 'shipped') {
+            //     $buyer = User::where('email', $orderItem->order->email)->first();
+            //     if ($buyer) {
+            //         // $buyer->notify(new OrderShippedNotification($orderItem));
+            //     }
+            // }
+
+            return response()->json(['message' => 'Statut mis à jour avec succès.', 'status' => $orderItem->status]);
+
+        } catch (\Exception $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
     }
 }

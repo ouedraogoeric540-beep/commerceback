@@ -36,4 +36,14 @@ class Shop extends Model
     {
         return $this->hasMany(PromoCode::class);
     }
+
+    public function wallet()
+    {
+        return $this->hasOne(Wallet::class);
+    }
+
+    public function withdrawals()
+    {
+        return $this->hasMany(Withdrawal::class);
+    }
 }
