@@ -8,10 +8,7 @@ class OrderStateMachineService
 {
     protected array $transitions = [
         'pending' => ['paid', 'cancelled'],
-        'paid' => ['preparing', 'shipped', 'cancelled'],
-        'preparing' => ['shipped', 'cancelled'],
-        'shipped' => ['delivered', 'cancelled'],
-        'delivered' => ['completed'],
+        'paid' => ['completed', 'cancelled'],
         'completed' => [],
         'cancelled' => [],
     ];

@@ -28,10 +28,6 @@ Route::post('/checkout/validate-promo', [App\Http\Controllers\PromoCodeControlle
 Route::get('/checkout/success-details/{id}', [App\Http\Controllers\OrderController::class, 'successDetails']);
 Route::get('/checkout/success-invoice/{id}', [App\Http\Controllers\OrderController::class, 'publicDownloadInvoice']);
 
-// Paiements (Webhooks & Gateways)
-Route::post('/webhooks/payment/{provider}', [App\Http\Controllers\PaymentWebhookController::class, 'handle']);
-Route::get('/checkout/simulate-gateway', [App\Http\Controllers\PaymentWebhookController::class, 'simulateGateway']);
-
 // Téléchargements Sécurisés (Tokens)
 Route::get('/downloads/{token}', [App\Http\Controllers\DownloadController::class, 'download']);
 
@@ -43,17 +39,8 @@ Route::middleware('auth:sanctum')->group(function () {
     // Admin - Dashboard (Vue d'ensemble)
     Route::get('/admin/dashboard', [\App\Http\Controllers\AdminDashboardController::class, 'getStats']);
 
-    // Admin - Finances
-    Route::get('/admin/finances/stats', [\App\Http\Controllers\AdminFinanceController::class, 'getStats']);
-    Route::get('/admin/finances/withdrawals', [\App\Http\Controllers\AdminFinanceController::class, 'getWithdrawals']);
-    Route::post('/admin/finances/withdrawals/{id}/process', [\App\Http\Controllers\AdminFinanceController::class, 'processWithdrawal']);
-    Route::get('/admin/finances/transactions', [\App\Http\Controllers\AdminFinanceController::class, 'getTransactions']);
-    
     // Admin - Litiges
-    Route::get('/admin/disputes', [\App\Http\Controllers\AdminDisputeController::class, 'getDisputes']);
-    Route::get('/admin/disputes/{id}', [\App\Http\Controllers\AdminDisputeController::class, 'getDisputeDetails']);
-    Route::post('/admin/disputes/{id}/messages', [\App\Http\Controllers\AdminDisputeController::class, 'addMessage']);
-    Route::post('/admin/disputes/{id}/resolve', [\App\Http\Controllers\AdminDisputeController::class, 'resolveDispute']);
+
 
     // Admin - Paramètres système
     Route::get('/admin/settings', [\App\Http\Controllers\AdminSettingsController::class, 'index']);
@@ -93,20 +80,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/seller/stats', [App\Http\Controllers\OrderController::class, 'getSellerStats']);
     Route::get('/seller/orders', [App\Http\Controllers\OrderController::class, 'getSellerOrders']);
 
-    // Finances du vendeur
-    Route::get('/vendor/finances/stats', [\App\Http\Controllers\SellerFinanceController::class, 'getStats']);
-    Route::get('/vendor/finances/transactions', [\App\Http\Controllers\SellerFinanceController::class, 'getTransactions']);
-    Route::get('/vendor/finances/withdrawals', [\App\Http\Controllers\SellerFinanceController::class, 'getWithdrawals']);
-    Route::post('/vendor/finances/withdrawals', [\App\Http\Controllers\SellerFinanceController::class, 'requestWithdrawal']);
-
     // Espace Acheteur (commandes + téléchargements + litiges)
     Route::get('/buyer/stats', [App\Http\Controllers\OrderController::class, 'getBuyerStats']);
     Route::get('/buyer/orders', [App\Http\Controllers\OrderController::class, 'getBuyerOrders']);
     Route::get('/buyer/orders/{orderId}/download/{productId}', [App\Http\Controllers\OrderController::class, 'downloadDigitalProduct']);
     Route::get('/buyer/orders/{orderId}/invoice', [App\Http\Controllers\OrderController::class, 'downloadInvoice']);
     Route::get('/buyer/downloads', [\App\Http\Controllers\BuyerController::class, 'myDownloads']);
-    Route::post('/buyer/disputes', [\App\Http\Controllers\BuyerController::class, 'openDispute']);
-    Route::get('/buyer/disputes', [\App\Http\Controllers\BuyerController::class, 'myDisputes']);
+
 
     // Catalogue Vendeur
     Route::get('/seller/products', [App\Http\Controllers\ProductController::class, 'index']);

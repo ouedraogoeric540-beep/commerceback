@@ -4,8 +4,9 @@ namespace App\Notifications;
 
 use Illuminate\Bus\Queueable;
 use Illuminate\Notifications\Notification;
+use Illuminate\Contracts\Queue\ShouldQueue;
 
-class OrderPlacedNotification extends Notification
+class OrderPlacedNotification extends Notification implements \Illuminate\Contracts\Queue\ShouldQueue
 {
     use Queueable;
 

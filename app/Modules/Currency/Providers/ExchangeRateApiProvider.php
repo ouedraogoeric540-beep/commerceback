@@ -8,7 +8,12 @@ use RuntimeException;
 
 class ExchangeRateApiProvider implements ExchangeRateProviderInterface
 {
-    private string $baseUrl = 'https://v6.exchangerate-api.com/v6';
+    private string $baseUrl;
+
+    public function __construct()
+    {
+        $this->baseUrl = config('services.exchangerate.url', 'https://v6.exchangerate-api.com/v6');
+    }
 
     public function getRate(string $fromCurrency, string $toCurrency): float
     {

@@ -12,7 +12,7 @@ class AuditLogService
     /**
      * Record an audit event.
      *
-     * @param string $action e.g. "kyc.approved", "user.blocked", "dispute.resolved"
+     * @param string $action e.g. "kyc.approved", "user.blocked"
      * @param Model|null $target The Eloquent model being acted upon
      * @param array $metadata Extra context (old values, new values, reason...)
      */

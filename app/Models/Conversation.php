@@ -9,9 +9,6 @@ class Conversation extends Model
     protected $fillable = [
         'buyer_id',
         'shop_id',
-        'order_id',
-        'product_id',
-        'subject',
         'status',
         'buyer_read_at',
         'seller_read_at',
@@ -34,15 +31,7 @@ class Conversation extends Model
         return $this->belongsTo(Shop::class);
     }
 
-    public function order()
-    {
-        return $this->belongsTo(Order::class);
-    }
 
-    public function product()
-    {
-        return $this->belongsTo(Product::class);
-    }
 
     public function messages()
     {
@@ -52,5 +41,28 @@ class Conversation extends Model
     public function lastMessage()
     {
         return $this->hasOne(Message::class)->latestOfMany();
+    }
+
+    /**
+     * Helper to send a system message in the chat
+     */
+    public static function sendSystemMessage($buyer_id, $shop_id, $body, $order_id = null, $product_id = null)
+    {
+        $conversation = self::firstOrCreate(
+            ['buyer_id' => $buyer_id, 'shop_id' => $shop_id]
+        );
+
+        $message = Message::create([
+            'conversation_id' => $conversation->id,
+            'sender_id'       => null, // Null means system
+            'body'            => $body,
+            'is_system'       => true,
+            'order_id'        => $order_id,
+            'product_id'      => $product_id,
+        ]);
+
+        $conversation->update(['last_message_at' => now()]);
+
+        return $message;
     }
 }

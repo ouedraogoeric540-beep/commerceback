@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use App\Models\Shop;
 use App\Models\Product;
 use App\Models\GlobalCategory;
+use Illuminate\Support\Facades\Cache;
 
 class PublicController extends Controller
 {
@@ -84,18 +85,25 @@ class PublicController extends Controller
             default      => $query->latest(),
         };
 
-        // Pagination
-        $products = $query->paginate(12);
+        // Cache key based on request parameters
+        $cacheKey = 'catalog_' . md5(json_encode($request->all()));
 
-        // Catégories pour les filtres
-        $categories = GlobalCategory::where('is_active', true)
-            ->whereNull('parent_id')
-            ->withCount(['products' => fn($q) => $q->where('is_active', true)])
-            ->get();
+        $response = Cache::remember($cacheKey, now()->addMinutes(5), function () use ($query) {
+            // Pagination
+            $products = $query->paginate(12);
 
-        return response()->json([
-            'products'   => $products,
-            'categories' => $categories,
-        ]);
+            // Catégories pour les filtres
+            $categories = GlobalCategory::where('is_active', true)
+                ->whereNull('parent_id')
+                ->withCount(['products' => fn($q) => $q->where('is_active', true)])
+                ->get();
+
+            return [
+                'products'   => $products,
+                'categories' => $categories,
+            ];
+        });
+
+        return response()->json($response);
     }
 }

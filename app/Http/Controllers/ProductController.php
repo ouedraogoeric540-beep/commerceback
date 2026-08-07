@@ -15,7 +15,7 @@ class ProductController extends Controller
     {
         $shop = $request->user()->shop;
         if (!$shop) {
-            return response()->json(['message' => 'Boutique introuvable.'], 404);
+            return response()->json(['message' => __('api.shop_not_found')], 404);
         }
 
         $query = $shop->products()->with('globalCategory')->latest();
@@ -32,7 +32,7 @@ class ProductController extends Controller
     {
         $shop = $request->user()->shop;
         if (!$shop) {
-            return response()->json(['message' => 'Boutique introuvable.'], 404);
+            return response()->json(['message' => __('api.shop_not_found')], 404);
         }
 
         $rules = [
@@ -145,7 +145,7 @@ class ProductController extends Controller
         $shop = $request->user()->shop;
 
         if (!$shop) {
-            return response()->json(['message' => 'Boutique introuvable.'], 404);
+            return response()->json(['message' => __('api.shop_not_found')], 404);
         }
 
         $request->validate([
@@ -168,12 +168,12 @@ class ProductController extends Controller
     {
         $shop = $request->user()->shop;
         if (!$shop) {
-            return response()->json(['message' => 'Boutique introuvable.'], 404);
+            return response()->json(['message' => __('api.shop_not_found')], 404);
         }
 
         $product = Product::where('id', $id)->where('shop_id', $shop->id)->first();
         if (!$product) {
-            return response()->json(['message' => 'Produit introuvable.'], 404);
+            return response()->json(['message' => __('api.product_not_found')], 404);
         }
 
         $rules = [
@@ -286,12 +286,12 @@ class ProductController extends Controller
     {
         $shop = $request->user()->shop;
         if (!$shop) {
-            return response()->json(['message' => 'Boutique introuvable.'], 404);
+            return response()->json(['message' => __('api.shop_not_found')], 404);
         }
 
         $product = Product::where('id', $id)->where('shop_id', $shop->id)->first();
         if (!$product) {
-            return response()->json(['message' => 'Produit introuvable.'], 404);
+            return response()->json(['message' => __('api.product_not_found')], 404);
         }
 
         try {
@@ -319,7 +319,7 @@ class ProductController extends Controller
             ]);
         } catch (\Exception $e) {
             DB::rollBack();
-            return response()->json(['message' => 'Erreur lors de la suppression.'], 500);
+            return response()->json(['message' => __('api.error_deleting')], 500);
         }
     }
 }

@@ -9,7 +9,10 @@ class Message extends Model
     protected $fillable = [
         'conversation_id',
         'sender_id',
+        'order_id',
+        'product_id',
         'body',
+        'is_system',
         'attachment_path',
         'attachment_name',
         'attachment_type',
@@ -32,6 +35,16 @@ class Message extends Model
     public function conversation()
     {
         return $this->belongsTo(Conversation::class);
+    }
+
+    public function order()
+    {
+        return $this->belongsTo(Order::class);
+    }
+
+    public function product()
+    {
+        return $this->belongsTo(Product::class);
     }
 
     public function getAttachmentUrlAttribute()

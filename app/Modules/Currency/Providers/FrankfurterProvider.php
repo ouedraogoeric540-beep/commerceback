@@ -9,7 +9,12 @@ use RuntimeException;
 
 class FrankfurterProvider implements ExchangeRateProviderInterface
 {
-    private string $baseUrl = 'https://api.frankfurter.app';
+    private string $baseUrl;
+
+    public function __construct()
+    {
+        $this->baseUrl = config('services.frankfurter.url', 'https://api.frankfurter.app');
+    }
 
     public function getRate(string $fromCurrency, string $toCurrency): float
     {

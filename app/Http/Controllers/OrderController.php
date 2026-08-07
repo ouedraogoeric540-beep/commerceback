@@ -35,7 +35,7 @@ class OrderController extends Controller
             'cart_items' => 'required|array',
             'cart_items.*.id' => 'required|exists:products,id',
             'cart_items.*.quantity' => 'required|integer|min:1',
-            'payment_method' => 'required|string',
+            'cart_items.*.quantity' => 'required|integer|min:1',
             'promo_code' => 'nullable|array',
             'promo_code.code' => 'required_with:promo_code|string',
             'promo_code.shop_id' => 'required_with:promo_code|integer|exists:shops,id'
@@ -143,9 +143,7 @@ class OrderController extends Controller
                 'last_name' => $request->last_name,
                 'total_amount' => $totalAmount,
                 'promo_code' => $appliedPromo ? $appliedPromo->code : null,
-                'status' => 'pending',
-                'payment_method' => $request->payment_method,
-                'payment_id' => null,
+                'status' => 'completed',
             ]);
 
             // Création des OrderItems
@@ -153,19 +151,22 @@ class OrderController extends Controller
                 $order->items()->create($data);
             }
 
-            // L'incrémentation de used_count est déléguée au PaymentService lors de la confirmation finale
+            if ($appliedPromo) {
+                $appliedPromo->increment('used_count');
+            }
+            
+            // Create download tokens
+            foreach ($order->items as $item) {
+                if ($item->product && $item->product->digital_file) {
+                    \App\Models\DownloadToken::createForOrder($item);
+                }
+            }
+
             DB::commit();
-            
-            // On initialise le paiement via la Factory
-            // Dans le futur, on passera 'stripe' ou 'cinetpay' selon $request->payment_method
-            $provider = 'simulated'; 
-            $paymentProvider = \App\Services\Payment\PaymentFactory::create($provider);
-            
-            $paymentUrl = $paymentProvider->initializePayment($order, env('FRONTEND_URL') . '/paiement/reussi', env('FRONTEND_URL') . '/paiement');
 
             return response()->json([
-                'message' => 'Commande initiée, en attente de paiement',
-                'payment_url' => $paymentUrl
+                'message' => 'Commande effectuée avec succès',
+                'order_id' => $order->id
             ], 200);
 
         } catch (\Exception $e) {
@@ -368,7 +369,7 @@ class OrderController extends Controller
         // 2. Vérifier que le produit est bien dans cette commande
         $orderItem = OrderItem::where('order_id', $orderId)->where('product_id', $productId)->first();
         if (!$orderItem) {
-            return response()->json(['message' => 'Ce produit ne fait pas partie de votre commande.'], 403);
+            return response()->json(['message' => __('api.product_not_in_order')], 403);
         }
 
         $product = $orderItem->product;
@@ -380,7 +381,7 @@ class OrderController extends Controller
 
         // 4. Vérifier que le fichier existe physiquement sur le disque (stockage local privé)
         if (!Storage::exists($product->digital_file)) {
-            return response()->json(['message' => 'Le fichier est introuvable sur le serveur.'], 404);
+            return response()->json(['message' => __('api.file_not_found')], 404);
         }
 
         // 5. Télécharger le fichier
@@ -433,7 +434,7 @@ class OrderController extends Controller
         $order = Order::with(['items.product.shop'])->find($id);
 
         if (!$order) {
-            return response()->json(['message' => 'Commande introuvable.'], 404);
+            return response()->json(['message' => __('api.order_not_found')], 404);
         }
 
         // Sécurité basique pour achat invité (limite à 24h)
@@ -466,7 +467,7 @@ class OrderController extends Controller
     {
         $order = Order::with(['items.product.shop'])->find($id);
         if (!$order) {
-            return response()->json(['message' => 'Not found'], 404);
+            return response()->json(['message' => __('api.order_not_found')], 404);
         }
         
         // Sécurité basique pour achat invité (limite à 24h)
@@ -519,7 +520,7 @@ class OrderController extends Controller
         $orderItem = OrderItem::find($id);
 
         if (!$orderItem) {
-            return response()->json(['message' => 'Article de commande introuvable.'], 404);
+            return response()->json(['message' => __('api.order_item_not_found')], 404);
         }
 
         if ($orderItem->shop_id !== $user->shop->id) {
@@ -533,13 +534,17 @@ class OrderController extends Controller
             $orderItem->status = $request->status;
             $orderItem->save();
 
-            // Optionnel : Notifier l'acheteur
-            // if ($request->status === 'shipped') {
-            //     $buyer = User::where('email', $orderItem->order->email)->first();
-            //     if ($buyer) {
-            //         // $buyer->notify(new OrderShippedNotification($orderItem));
-            //     }
-            // }
+            // Notify via system message in chat
+            if (in_array($request->status, ['completed', 'cancelled'])) {
+                $statusText = $request->status === 'completed' ? 'marquée comme terminée' : 'annulée';
+                \App\Models\Conversation::sendSystemMessage(
+                    $orderItem->order->user_id,
+                    $orderItem->shop_id,
+                    "✅ La commande #{$orderItem->order->id} a été $statusText par le vendeur.",
+                    $orderItem->order->id,
+                    $orderItem->product_id
+                );
+            }
 
             return response()->json(['message' => 'Statut mis à jour avec succès.', 'status' => $orderItem->status]);
 

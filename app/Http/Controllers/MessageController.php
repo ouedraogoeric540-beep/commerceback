@@ -26,7 +26,7 @@ class MessageController extends Controller
         if ($user->shop && !$forceBuyerView) {
             // Seller: conversations for their shop
             $conversations = Conversation::where('shop_id', $user->shop->id)
-                ->with(['buyer:id,name,avatar', 'lastMessage', 'order:id,total_amount', 'product:id,name'])
+                ->with(['buyer:id,name,avatar', 'lastMessage.order:id,total_amount', 'lastMessage.product:id,name'])
                 ->orderByDesc('last_message_at')
                 ->get()
                 ->map(function ($conv) use ($user) {
@@ -40,7 +40,7 @@ class MessageController extends Controller
         } else {
             // Buyer: their own conversations (as a buyer)
             $conversations = Conversation::where('buyer_id', $user->id)
-                ->with(['shop:id,name,logo,slug', 'lastMessage', 'order:id,total_amount', 'product:id,name'])
+                ->with(['shop:id,name,logo,slug', 'lastMessage.order:id,total_amount', 'lastMessage.product:id,name'])
                 ->orderByDesc('last_message_at')
                 ->get()
                 ->map(function ($conv) use ($user) {
@@ -63,36 +63,23 @@ class MessageController extends Controller
     {
         $request->validate([
             'shop_id'    => 'required|exists:shops,id',
-            'order_id'   => 'nullable|exists:orders,id',
-            'product_id' => 'nullable|exists:products,id',
-            'subject'    => 'nullable|string|max:255',
         ]);
 
         $buyer = Auth::user();
 
         // Try to find existing conversation for this context
-        $query = Conversation::where('buyer_id', $buyer->id)
-            ->where('shop_id', $request->shop_id);
-
-        if ($request->order_id) {
-            $query->where('order_id', $request->order_id);
-        } else {
-            $query->whereNull('order_id');
-        }
-
-        $conversation = $query->first();
+        $conversation = Conversation::where('buyer_id', $buyer->id)
+            ->where('shop_id', $request->shop_id)
+            ->first();
 
         if (!$conversation) {
             $conversation = Conversation::create([
                 'buyer_id'   => $buyer->id,
                 'shop_id'    => $request->shop_id,
-                'order_id'   => $request->order_id,
-                'product_id' => $request->product_id,
-                'subject'    => $request->subject,
             ]);
         }
 
-        $conversation->load(['buyer', 'shop', 'order', 'product']);
+        $conversation->load(['buyer', 'shop']);
 
         return response()->json($conversation);
     }
@@ -119,7 +106,7 @@ class MessageController extends Controller
         }
 
         $messages = $conversation->messages()
-            ->with('sender:id,name,avatar')
+            ->with(['sender:id,name,avatar', 'order:id,total_amount', 'product:id,name'])
             ->get()
             ->map(function ($msg) {
                 $msg->attachment_url = $msg->attachment_url;
@@ -127,7 +114,7 @@ class MessageController extends Controller
             });
 
         return response()->json([
-            'conversation' => $conversation->load(['buyer', 'shop', 'order', 'product']),
+            'conversation' => $conversation->load(['buyer', 'shop']),
             'messages'     => $messages,
         ]);
     }
@@ -140,6 +127,8 @@ class MessageController extends Controller
         $request->validate([
             'body'       => 'nullable|string|max:5000',
             'attachment' => 'nullable|file|max:10240|mimes:jpg,jpeg,png,gif,pdf,doc,docx,txt',
+            'order_id'   => 'nullable|exists:orders,id',
+            'product_id' => 'nullable|exists:products,id',
         ]);
 
         if (!$request->body && !$request->hasFile('attachment')) {
@@ -168,6 +157,8 @@ class MessageController extends Controller
             'attachment_path' => $attachmentPath,
             'attachment_name' => $attachmentName,
             'attachment_type' => $attachmentType,
+            'order_id'        => $request->order_id,
+            'product_id'      => $request->product_id,
         ]);
 
         // Update conversation last_message_at

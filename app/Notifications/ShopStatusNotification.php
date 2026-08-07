@@ -4,8 +4,9 @@ namespace App\Notifications;
 
 use Illuminate\Bus\Queueable;
 use Illuminate\Notifications\Notification;
+use Illuminate\Contracts\Queue\ShouldQueue;
 
-class ShopStatusNotification extends Notification
+class ShopStatusNotification extends Notification implements \Illuminate\Contracts\Queue\ShouldQueue
 {
     use Queueable;
 

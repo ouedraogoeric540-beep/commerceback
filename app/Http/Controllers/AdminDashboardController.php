@@ -31,12 +31,12 @@ class AdminDashboardController extends Controller
             $totalShops = Shop::where('status', 'approved')->count();
             
             // GMV (Commandes payées ou terminées)
-            $currentMonthGMV = Order::whereIn('status', ['paid', 'shipped', 'delivered', 'completed'])
+            $currentMonthGMV = Order::whereIn('status', ['paid', 'completed'])
                 ->whereMonth('created_at', $now->month)
                 ->whereYear('created_at', $now->year)
                 ->sum('total_amount');
 
-            $lastMonthGMV = Order::whereIn('status', ['paid', 'shipped', 'delivered', 'completed'])
+            $lastMonthGMV = Order::whereIn('status', ['paid', 'completed'])
                 ->whereMonth('created_at', $lastMonth->month)
                 ->whereYear('created_at', $lastMonth->year)
                 ->sum('total_amount');
@@ -56,7 +56,7 @@ class AdminDashboardController extends Controller
                 DB::raw('DATE(created_at) as date'),
                 DB::raw('SUM(total_amount) as total')
             )
-            ->whereIn('status', ['paid', 'shipped', 'delivered', 'completed'])
+            ->whereIn('status', ['paid', 'completed'])
             ->where('created_at', '>=', Carbon::now()->subDays(30))
             ->groupBy('date')
             ->orderBy('date', 'ASC')
@@ -116,8 +116,6 @@ class AdminDashboardController extends Controller
 
         $pendingKyc = Shop::where('status', 'pending')->count();
         
-        // Simuler les litiges en attente si la table disputes n'existe pas encore
-        $pendingDisputes = 0; // Dispute::where('status', 'open')->count();
         $pendingWithdrawals = 0; // Withdrawal::where('status', 'pending')->count();
 
         $recentActivity = [];
@@ -155,7 +153,6 @@ class AdminDashboardController extends Controller
 
         $stats['actionables'] = [
             'pendingKyc' => $pendingKyc,
-            'pendingDisputes' => $pendingDisputes,
             'pendingWithdrawals' => $pendingWithdrawals,
         ];
         
