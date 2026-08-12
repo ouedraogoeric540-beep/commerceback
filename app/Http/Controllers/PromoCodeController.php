@@ -15,7 +15,7 @@ class PromoCodeController extends Controller
     {
         $shop = $request->user()->shop;
         if (!$shop) {
-            return response()->json(['message' => 'Boutique introuvable.'], 404);
+            return response()->json(['message' => __('api.boutique_introuvable')], 404);
         }
 
         $promoCodes = $shop->promoCodes()->orderBy('created_at', 'desc')->get();
@@ -29,7 +29,7 @@ class PromoCodeController extends Controller
     {
         $shop = $request->user()->shop;
         if (!$shop) {
-            return response()->json(['message' => 'Boutique introuvable.'], 404);
+            return response()->json(['message' => __('api.boutique_introuvable')], 404);
         }
 
         $request->validate([
@@ -59,7 +59,7 @@ class PromoCodeController extends Controller
             'is_active' => true,
         ]);
 
-        return response()->json(['message' => 'Code promo créé avec succès.', 'promo_code' => $promoCode], 201);
+        return response()->json(['message' => __('api.code_promo_cr_avec_succ_s'), 'promo_code' => $promoCode], 201);
     }
 
     /**
@@ -77,7 +77,7 @@ class PromoCodeController extends Controller
         $promoCode->is_active = $request->is_active;
         $promoCode->save();
 
-        return response()->json(['message' => 'Code promo mis à jour.', 'promo_code' => $promoCode]);
+        return response()->json(['message' => __('api.code_promo_mis_jour'), 'promo_code' => $promoCode]);
     }
 
     /**
@@ -90,7 +90,7 @@ class PromoCodeController extends Controller
         
         $promoCode->delete();
 
-        return response()->json(['message' => 'Code promo supprimé.']);
+        return response()->json(['message' => __('api.code_promo_supprim')]);
     }
 
     /**
@@ -111,23 +111,23 @@ class PromoCodeController extends Controller
             ->first();
 
         if (!$promoCode) {
-            return response()->json(['message' => 'Code promo invalide.'], 404);
+            return response()->json(['message' => __('api.code_promo_invalide')], 404);
         }
 
         if (!$promoCode->is_active) {
-            return response()->json(['message' => 'Ce code promo est désactivé.'], 400);
+            return response()->json(['message' => __('api.ce_code_promo_est_d_sactiv')], 400);
         }
 
-        if ($promoCode->max_uses !== null && $promoCode->used_count >= $promoCode->max_uses) {
-            return response()->json(['message' => 'Ce code promo a atteint sa limite d\'utilisation.'], 400);
+        if ($promoCode->usage_limit !== null && $promoCode->used_count >= $promoCode->usage_limit) {
+            return response()->json(['message' => __('api.ce_code_promo_a_atteint_sa_limite_dutilisation')], 400);
         }
 
         if ($promoCode->expires_at && now()->greaterThan($promoCode->expires_at)) {
-            return response()->json(['message' => 'Ce code promo a expiré.'], 400);
+            return response()->json(['message' => __('api.ce_code_promo_a_expir')], 400);
         }
 
         return response()->json([
-            'message' => 'Code promo appliqué.',
+            'message' => __('api.code_promo_appliqu'),
             'promo_code' => [
                 'id' => $promoCode->id,
                 'code' => $promoCode->code,

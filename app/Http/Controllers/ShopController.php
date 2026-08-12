@@ -33,7 +33,7 @@ class ShopController extends Controller
 
         // Vérifier si l'utilisateur a déjà une boutique
         if ($user->shop) {
-            return response()->json(['message' => 'Vous possédez déjà une boutique.'], 403);
+            return response()->json(['message' => __('api.vous_poss_dez_d_j_une_boutique')], 403);
         }
 
         $shop = Shop::create([
@@ -68,7 +68,7 @@ class ShopController extends Controller
         ]);
 
         return response()->json([
-            'message' => 'Demande envoyée avec succès. L\'administrateur vous répondra sous 72h maximum.',
+            'message' => __('api.demande_envoy_e_avec_succ_s_l'),
             'shop' => $shop,
             'user' => $user->load('roles', 'shop') // on renvoie le user mis à jour
         ], 201);
@@ -148,7 +148,7 @@ class ShopController extends Controller
             DB::commit();
 
             return response()->json([
-                'message' => 'Compte et boutique créés avec succès.',
+                'message' => __('api.compte_et_boutique_cr_s_avec_s'),
                 'access_token' => $token,
                 'token_type' => 'Bearer',
                 'user' => $user->load('roles', 'shop'),
@@ -157,7 +157,7 @@ class ShopController extends Controller
 
         } catch (\Exception $e) {
             DB::rollBack();
-            return response()->json(['message' => 'Une erreur est survenue lors de la création.', 'error' => $e->getMessage()], 500);
+            return response()->json(['message' => __('api.une_erreur_est_survenue_lors_d'), 'error' => $e->getMessage()], 500);
         }
     }
 
@@ -169,7 +169,7 @@ class ShopController extends Controller
         $shop = $request->user()->shop()->with('kycDocuments')->first();
 
         if (!$shop) {
-            return response()->json(['message' => 'Aucune boutique trouvée.'], 404);
+            return response()->json(['message' => __('api.aucune_boutique_trouv_e')], 404);
         }
 
         return response()->json([
@@ -185,7 +185,7 @@ class ShopController extends Controller
         $shop = $request->user()->shop;
 
         if (!$shop) {
-            return response()->json(['message' => 'Aucune boutique trouvée.'], 404);
+            return response()->json(['message' => __('api.aucune_boutique_trouv_e')], 404);
         }
 
         $request->validate([
@@ -194,11 +194,27 @@ class ShopController extends Controller
             'slogan' => 'nullable|string|max:255',
             'logo' => 'nullable|image|mimes:jpeg,png,jpg,svg|max:2048',
             'cover' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:5120',
+            'support_email' => 'nullable|email|max:255',
+            'support_phone' => 'nullable|string|max:50',
+            'address' => 'nullable|string|max:255',
+            'city' => 'nullable|string|max:255',
+            'postal_code' => 'nullable|string|max:20',
+            'country' => 'nullable|string|max:255',
+            'registration_number' => 'nullable|string|max:255',
+            'vat_number' => 'nullable|string|max:255',
         ]);
 
         $shop->slug = Str::slug($request->slug);
         $shop->description = $request->description;
         $shop->slogan = $request->slogan;
+        $shop->support_email = $request->support_email;
+        $shop->support_phone = $request->support_phone;
+        $shop->address = $request->address;
+        $shop->city = $request->city;
+        $shop->postal_code = $request->postal_code;
+        $shop->country = $request->country;
+        $shop->registration_number = $request->registration_number;
+        $shop->vat_number = $request->vat_number;
 
         if ($request->hasFile('logo')) {
             $logoPath = $request->file('logo')->store('logos', 'public');
@@ -213,7 +229,7 @@ class ShopController extends Controller
         $shop->save();
 
         return response()->json([
-            'message' => 'Boutique mise à jour avec succès.',
+            'message' => __('api.boutique_mise_jour_avec_succ_s'),
             'shop' => $shop->fresh('kycDocuments')
         ]);
     }
@@ -253,7 +269,7 @@ class ShopController extends Controller
         $shop = $request->user()->shop;
 
         if (!$shop) {
-            return response()->json(['message' => 'Aucune boutique trouvée.'], 404);
+            return response()->json(['message' => __('api.aucune_boutique_trouv_e')], 404);
         }
 
         $request->validate([
@@ -275,38 +291,10 @@ class ShopController extends Controller
         $shop->save();
 
         return response()->json([
-            'message' => 'Paramètres mis à jour avec succès.',
+            'message' => __('api.param_tres_mis_jour_avec_succ_'),
             'shop' => $shop
         ]);
     }
 
-    /**
-     * Mettre à jour les informations légales et bancaires
-     */
-    public function updateBilling(Request $request)
-    {
-        $shop = $request->user()->shop;
 
-        if (!$shop) {
-            return response()->json(['message' => 'Aucune boutique trouvée.'], 404);
-        }
-
-        $validated = $request->validate([
-            'support_email' => 'nullable|email|max:255',
-            'support_phone' => 'nullable|string|max:50',
-            'address' => 'nullable|string|max:255',
-            'city' => 'nullable|string|max:255',
-            'postal_code' => 'nullable|string|max:20',
-            'country' => 'nullable|string|max:255',
-            'registration_number' => 'nullable|string|max:255',
-            'vat_number' => 'nullable|string|max:255',
-        ]);
-
-        $shop->update($validated);
-
-        return response()->json([
-            'message' => 'Informations légales et bancaires mises à jour.',
-            'shop' => $shop
-        ]);
-    }
 }

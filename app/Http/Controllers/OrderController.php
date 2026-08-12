@@ -165,7 +165,7 @@ class OrderController extends Controller
             DB::commit();
 
             return response()->json([
-                'message' => 'Commande effectuée avec succès',
+                'message' => __('api.commande_effectu_e_avec_succ_s'),
                 'order_id' => $order->id
             ], 200);
 
@@ -183,7 +183,6 @@ class OrderController extends Controller
             ->orderBy('created_at', 'desc')
             ->get();
 
-        $totalSpent = $orders->sum('total_amount');
         $totalOrders = $orders->count();
         $lastOrder = $orders->first();
         $recentOrders = $orders->take(5);
@@ -211,16 +210,15 @@ class OrderController extends Controller
             $monthStart = $date->copy()->startOfMonth();
             $monthEnd = $date->copy()->endOfMonth();
             
-            $monthSpent = $orders->whereBetween('created_at', [$monthStart, $monthEnd])->sum('total_amount');
+            $monthOrders = $orders->whereBetween('created_at', [$monthStart, $monthEnd])->count();
             
             $chartData[] = [
                 'name' => $date->translatedFormat('M'), // Jan, Fév, Mar...
-                'dépenses' => $monthSpent
+                'commandes' => $monthOrders
             ];
         }
 
         return response()->json([
-            'total_spent' => $totalSpent,
             'total_orders' => $totalOrders,
             'last_order_date' => $lastOrder ? $lastOrder->created_at : null,
             'recent_orders' => $recentOrders,
@@ -235,7 +233,7 @@ class OrderController extends Controller
         $shop = $request->user()->shop;
 
         if (!$shop) {
-            return response()->json(['message' => 'Aucune boutique trouvée.'], 404);
+            return response()->json(['message' => __('api.aucune_boutique_trouv_e')], 404);
         }
 
         $orderItems = OrderItem::where('shop_id', $shop->id)
@@ -243,16 +241,7 @@ class OrderController extends Controller
             ->orderBy('created_at', 'desc')
             ->get();
 
-        $totalRevenue = $orderItems->sum(function($item) {
-            return $item->price * $item->quantity;
-        });
-        
         $totalSales = $orderItems->sum('quantity'); // Nombre de produits vendus (au lieu de count)
-        
-        // Nouveaux KPIs Vendeur
-        // 1. Panier Moyen
-        $uniqueOrderIds = $orderItems->pluck('order_id')->unique();
-        $averageOrderValue = $uniqueOrderIds->count() > 0 ? $totalRevenue / $uniqueOrderIds->count() : 0;
         
         // 2. Produits en ligne (actifs)
         $activeProductsCount = \App\Models\Product::where('shop_id', $shop->id)->where('is_active', 1)->count();
@@ -284,20 +273,16 @@ class OrderController extends Controller
             $monthStart = $date->copy()->startOfMonth();
             $monthEnd = $date->copy()->endOfMonth();
             
-            $monthRevenue = $orderItems->whereBetween('created_at', [$monthStart, $monthEnd])->sum(function($item) {
-                return $item->price * $item->quantity;
-            });
+            $monthSales = $orderItems->whereBetween('created_at', [$monthStart, $monthEnd])->sum('quantity');
             
             $chartData[] = [
                 'name' => $date->translatedFormat('M'),
-                'revenus' => $monthRevenue
+                'ventes' => $monthSales
             ];
         }
 
         return response()->json([
-            'total_revenue' => $totalRevenue,
             'total_sales' => $totalSales,
-            'average_order_value' => $averageOrderValue,
             'active_products_count' => $activeProductsCount,
             'best_product' => $bestProduct,
             'out_of_stock_count' => $outOfStockCount,
@@ -327,7 +312,7 @@ class OrderController extends Controller
         $shop = $request->user()->shop;
 
         if (!$shop) {
-            return response()->json(['message' => 'Aucune boutique trouvée.'], 404);
+            return response()->json(['message' => __('api.aucune_boutique_trouv_e')], 404);
         }
 
         $query = OrderItem::where('shop_id', $shop->id)
@@ -363,7 +348,7 @@ class OrderController extends Controller
         // 1. Vérifier que la commande appartient à l'utilisateur
         $order = Order::where('id', $orderId)->where('email', $user->email)->first();
         if (!$order) {
-            return response()->json(['message' => 'Commande introuvable ou non autorisée.'], 403);
+            return response()->json(['message' => __('api.commande_introuvable_ou_non_au')], 403);
         }
 
         // 2. Vérifier que le produit est bien dans cette commande
@@ -376,7 +361,7 @@ class OrderController extends Controller
 
         // 3. Vérifier que c'est bien un produit numérique et qu'il possède un fichier
         if (in_array($product->product_type, ['physical_clothing', 'physical_item']) || !$product->digital_file) {
-            return response()->json(['message' => 'Aucun fichier téléchargeable pour ce produit.'], 404);
+            return response()->json(['message' => __('api.aucun_fichier_t_l_chargeable_p')], 404);
         }
 
         // 4. Vérifier que le fichier existe physiquement sur le disque (stockage local privé)
@@ -393,75 +378,7 @@ class OrderController extends Controller
         return Storage::download($product->digital_file, $downloadName);
     }
 
-    public function downloadInvoice(Request $request, $orderId)
-    {
-        $user = $request->user();
 
-        // 1. Fetch order and verify ownership
-        $order = Order::where('id', $orderId)->where('email', $user->email)
-            ->with(['items.product.shop'])
-            ->first();
-
-        if (!$order) {
-            return response()->json(['message' => 'Commande introuvable ou non autorisée.'], 403);
-        }
-
-        // 2. Group items by shop
-        $shops = [];
-        foreach ($order->items as $item) {
-            if ($item->product && $item->product->shop) {
-                $shopId = $item->product->shop->id;
-                if (!isset($shops[$shopId])) {
-                    $shops[$shopId] = [
-                        'shop' => $item->product->shop,
-                        'items' => [],
-                        'subtotal' => 0,
-                    ];
-                }
-                $shops[$shopId]['items'][] = $item;
-                $shops[$shopId]['subtotal'] += $item->price * $item->quantity;
-            }
-        }
-
-        // 3. Generate PDF
-        $pdf = Pdf::loadView('invoices.order', compact('order', 'shops', 'user'));
-
-        // 4. Return download
-        return $pdf->download('facture_' . $order->id . '.pdf');
-    }
-    public function publicDownloadInvoice($id)
-    {
-        $order = Order::with(['items.product.shop'])->find($id);
-
-        if (!$order) {
-            return response()->json(['message' => __('api.order_not_found')], 404);
-        }
-
-        // Sécurité basique pour achat invité (limite à 24h)
-        if ($order->created_at->diffInHours(now()) > 24) {
-            return response()->json(['message' => 'Lien expiré pour des raisons de sécurité'], 403);
-        }
-
-        $shops = [];
-        foreach ($order->items as $item) {
-            if ($item->product && $item->product->shop) {
-                $shopId = $item->product->shop->id;
-                if (!isset($shops[$shopId])) {
-                    $shops[$shopId] = [
-                        'shop' => $item->product->shop,
-                        'items' => [],
-                        'subtotal' => 0,
-                    ];
-                }
-                $shops[$shopId]['items'][] = $item;
-                $shops[$shopId]['subtotal'] += $item->price * $item->quantity;
-            }
-        }
-
-        $user = null;
-        $pdf = Pdf::loadView('invoices.order', compact('order', 'shops', 'user'));
-        return $pdf->download('facture_' . $order->id . '.pdf');
-    }
 
     public function successDetails($id)
     {
@@ -472,7 +389,7 @@ class OrderController extends Controller
         
         // Sécurité basique pour achat invité (limite à 24h)
         if ($order->created_at->diffInHours(now()) > 24) {
-            return response()->json(['message' => 'Lien expiré pour des raisons de sécurité'], 403);
+            return response()->json(['message' => __('api.lien_expir_pour_des_raisons_de')], 403);
         }
 
         $messages = [];
@@ -514,7 +431,7 @@ class OrderController extends Controller
 
         $user = $request->user();
         if (!$user->shop) {
-            return response()->json(['message' => 'Non autorisé.'], 403);
+            return response()->json(['message' => __('api.non_autoris')], 403);
         }
 
         $orderItem = OrderItem::find($id);
@@ -524,7 +441,7 @@ class OrderController extends Controller
         }
 
         if ($orderItem->shop_id !== $user->shop->id) {
-            return response()->json(['message' => 'Cet article n\'appartient pas à votre boutique.'], 403);
+            return response()->json(['message' => __('api.cet_article_nappartient_pas_a_votre_boutique')], 403);
         }
 
         try {
@@ -546,7 +463,7 @@ class OrderController extends Controller
                 );
             }
 
-            return response()->json(['message' => 'Statut mis à jour avec succès.', 'status' => $orderItem->status]);
+            return response()->json(['message' => __('api.statut_mis_jour_avec_succ_s'), 'status' => $orderItem->status]);
 
         } catch (\Exception $e) {
             return response()->json(['message' => $e->getMessage()], 422);

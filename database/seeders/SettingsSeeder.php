@@ -36,32 +36,15 @@ class SettingsSeeder extends Seeder
                 'description' => 'Active ou désactive la plateforme pour les utilisateurs.',
             ],
 
-            // --- Finance ---
-            [
-                'key'         => 'commission_rate',
-                'value'       => '10',
-                'type'        => 'number',
-                'group'       => 'finance',
-                'label'       => 'Taux de commission (%)',
-                'description' => 'Pourcentage prélevé sur chaque vente par la plateforme.',
-            ],
-            [
-                'key'         => 'min_withdrawal_amount',
-                'value'       => '1000',
-                'type'        => 'number',
-                'group'       => 'finance',
-                'label'       => 'Montant minimum de retrait',
-                'description' => 'Le montant minimum qu\'un vendeur peut demander à retirer.',
-            ],
+            // --- Localisation ---
             [
                 'key'         => 'default_currency',
                 'value'       => 'XOF',
                 'type'        => 'text',
-                'group'       => 'finance',
+                'group'       => 'localization',
                 'label'       => 'Devise par défaut',
-                'description' => 'La devise utilisée sur toute la plateforme (ISO 4217).',
+                'description' => 'La devise utilisée pour l\'affichage du catalogue (ISO 4217).',
             ],
-
             // --- CMS ---
             [
                 'key'         => 'homepage_banner_title',

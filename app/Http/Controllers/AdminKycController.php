@@ -22,7 +22,7 @@ class AdminKycController extends Controller
     public function pendingShops(Request $request)
     {
         if (!$request->user()->hasAnyRole(['Administrateur', 'Super-Administrateur'])) {
-            return response()->json(['message' => 'Accès non autorisé.'], 403);
+            return response()->json(['message' => __('api.acc_s_non_autoris')], 403);
         }
 
         $shops = Shop::with(['user', 'kycDocuments'])
@@ -38,7 +38,7 @@ class AdminKycController extends Controller
     public function history(Request $request)
     {
         if (!$request->user()->hasAnyRole(['Administrateur', 'Super-Administrateur'])) {
-            return response()->json(['message' => 'Accès non autorisé.'], 403);
+            return response()->json(['message' => __('api.acc_s_non_autoris')], 403);
         }
 
         $shops = Shop::with(['user', 'kycDocuments'])
@@ -55,13 +55,13 @@ class AdminKycController extends Controller
     public function approve(Request $request, $id)
     {
         if (!$request->user()->hasAnyRole(['Administrateur', 'Super-Administrateur'])) {
-            return response()->json(['message' => 'Accès non autorisé.'], 403);
+            return response()->json(['message' => __('api.acc_s_non_autoris')], 403);
         }
 
         $shop = Shop::findOrFail($id);
         
         if ($shop->status !== 'pending') {
-            return response()->json(['message' => 'Cette boutique n\'est plus en attente.'], 400);
+            return response()->json(['message' => __('api.cette_boutique_nest_plus_en_attente')], 400);
         }
 
         try {
@@ -70,9 +70,9 @@ class AdminKycController extends Controller
             if ($shop->user) {
                 \App\Services\NotificationService::send($shop->user, 'Félicitations ! Votre boutique a été validée', "Le dossier KYC de votre boutique {$shop->name} a été accepté.", 'kyc_approved', ['shop_id' => $shop->id]);
             }
-            return response()->json(['message' => 'Boutique approuvée avec succès.']);
+            return response()->json(['message' => __('api.boutique_approuv_e_avec_succ_s')]);
         } catch (\Exception $e) {
-            return response()->json(['message' => 'Erreur lors de l\'approbation.'], 500);
+            return response()->json(['message' => __('api.erreur_lors_de_lapprobation')], 500);
         }
     }
 
@@ -82,7 +82,7 @@ class AdminKycController extends Controller
     public function reject(Request $request, $id)
     {
         if (!$request->user()->hasAnyRole(['Administrateur', 'Super-Administrateur'])) {
-            return response()->json(['message' => 'Accès non autorisé.'], 403);
+            return response()->json(['message' => __('api.acc_s_non_autoris')], 403);
         }
 
         $request->validate([
@@ -92,7 +92,7 @@ class AdminKycController extends Controller
         $shop = Shop::findOrFail($id);
         
         if ($shop->status !== 'pending') {
-            return response()->json(['message' => 'Cette boutique n\'est plus en attente.'], 400);
+            return response()->json(['message' => __('api.cette_boutique_nest_plus_en_attente')], 400);
         }
 
         try {
@@ -101,9 +101,9 @@ class AdminKycController extends Controller
             if ($shop->user) {
                 \App\Services\NotificationService::send($shop->user, 'Dossier KYC Rejeté', "Le dossier KYC de votre boutique {$shop->name} a été refusé pour le motif suivant : {$request->reason}.", 'kyc_rejected', ['shop_id' => $shop->id, 'reason' => $request->reason]);
             }
-            return response()->json(['message' => 'Boutique rejetée avec succès.']);
+            return response()->json(['message' => __('api.boutique_rejet_e_avec_succ_s')]);
         } catch (\Exception $e) {
-            return response()->json(['message' => 'Erreur lors du rejet.'], 500);
+            return response()->json(['message' => __('api.erreur_lors_du_rejet')], 500);
         }
     }
 }

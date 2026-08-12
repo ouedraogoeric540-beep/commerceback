@@ -132,7 +132,7 @@ class MessageController extends Controller
         ]);
 
         if (!$request->body && !$request->hasFile('attachment')) {
-            return response()->json(['message' => 'Un message ou une pièce jointe est requis.'], 422);
+            return response()->json(['message' => __('api.un_message_ou_une_pi_ce_jointe')], 422);
         }
 
         $user = Auth::user();

@@ -1,7 +1,7 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
-use App\Modules\Currency\Http\Controllers\CurrencyController;
+use App\Http\Controllers\CurrencyController;
 
 /*
 |--------------------------------------------------------------------------
@@ -10,9 +10,5 @@ use App\Modules\Currency\Http\Controllers\CurrencyController;
 */
 
 Route::prefix('currencies')->group(function () {
-    // Endpoints publics
-    Route::get('/', [CurrencyController::class, 'index']);
-    
-    // Endpoints d'administration (A protéger par auth:sanctum + Admin policy plus tard)
-    Route::post('/sync', [CurrencyController::class, 'syncRates']);
+    Route::get('/rates', [CurrencyController::class, 'getRates']);
 });

@@ -36,11 +36,8 @@ return [
     ],
 
     'exchangerate' => [
+        'key' => env('EXCHANGERATE_API_KEY'),
         'url' => env('EXCHANGERATE_API_URL', 'https://v6.exchangerate-api.com/v6'),
-    ],
-
-    'frankfurter' => [
-        'url' => env('FRANKFURTER_API_URL', 'https://api.frankfurter.app'),
     ],
 
 ];

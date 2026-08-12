@@ -60,7 +60,7 @@ class ProfileController extends Controller
         $user->save();
 
         return response()->json([
-            'message' => 'Mot de passe mis à jour avec succès.'
+            'message' => __('api.mot_de_passe_mis_jour_avec_suc')
         ]);
     }
 
@@ -77,7 +77,7 @@ class ProfileController extends Controller
 
         return response()->json([
             'user' => $user->load('shop', 'shop.kycDocuments'),
-            'message' => 'Préférences mises à jour avec succès.'
+            'message' => __('api.pr_f_rences_mises_jour_avec_su')
         ]);
     }
 }

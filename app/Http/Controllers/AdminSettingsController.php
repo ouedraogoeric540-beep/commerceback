@@ -31,7 +31,7 @@ class AdminSettingsController extends Controller
         ]);
 
         return response()->json([
-            'message'  => 'Paramètres mis à jour avec succès.',
+            'message' => __('api.param_tres_mis_jour_avec_succ_'),
             'settings' => Setting::all()->groupBy('group'),
         ]);
     }

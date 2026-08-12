@@ -30,33 +30,17 @@ class AdminDashboardController extends Controller
             // Boutiques
             $totalShops = Shop::where('status', 'approved')->count();
             
-            // GMV (Commandes payées ou terminées)
-            $currentMonthGMV = Order::whereIn('status', ['paid', 'completed'])
-                ->whereMonth('created_at', $now->month)
-                ->whereYear('created_at', $now->year)
-                ->sum('total_amount');
-
-            $lastMonthGMV = Order::whereIn('status', ['paid', 'completed'])
-                ->whereMonth('created_at', $lastMonth->month)
-                ->whereYear('created_at', $lastMonth->year)
-                ->sum('total_amount');
+            // Produits
+            $totalProducts = \App\Models\Product::count();
+            $productsLastMonth = \App\Models\Product::where('created_at', '<', $now->startOfMonth())->count();
+            $productGrowth = $productsLastMonth > 0 ? (($totalProducts - $productsLastMonth) / $productsLastMonth) * 100 : 0;
             
-            $gmvGrowth = $lastMonthGMV > 0 ? (($currentMonthGMV - $lastMonthGMV) / $lastMonthGMV) * 100 : ($currentMonthGMV > 0 ? 100 : 0);
-
-            // Revenus plateforme (estimés à 10% de commission par défaut pour l'exemple)
-            // Idéalement, cela devrait venir de la table ledger_transactions plus tard.
-            $currentMonthRevenue = $currentMonthGMV * 0.10; 
-            $lastMonthRevenue = $lastMonthGMV * 0.10;
-            $revenueGrowth = $lastMonthRevenue > 0 ? (($currentMonthRevenue - $lastMonthRevenue) / $lastMonthRevenue) * 100 : ($currentMonthRevenue > 0 ? 100 : 0);
-
-            // --- 2. CHARTS (Graphiques) ---
-            
-            // Ventes des 30 derniers jours (Groupé par jour)
+            // Ventes des 30 derniers jours (Groupé par jour, par nombre de commandes)
             $salesLast30Days = Order::select(
                 DB::raw('DATE(created_at) as date'),
-                DB::raw('SUM(total_amount) as total')
+                DB::raw('COUNT(*) as total')
             )
-            ->whereIn('status', ['paid', 'completed'])
+            ->whereIn('status', ['completed', 'pending'])
             ->where('created_at', '>=', Carbon::now()->subDays(30))
             ->groupBy('date')
             ->orderBy('date', 'ASC')
@@ -69,8 +53,7 @@ class AdminDashboardController extends Controller
                 $dayData = $salesLast30Days->firstWhere('date', $dateString);
                 $chartData[] = [
                     'date' => Carbon::now()->subDays($i)->format('d M'),
-                    'total' => $dayData ? (float)$dayData->total : 0,
-                    'revenue' => $dayData ? (float)($dayData->total * 0.10) : 0,
+                    'total' => $dayData ? (int)$dayData->total : 0
                 ];
             }
 
@@ -87,14 +70,6 @@ class AdminDashboardController extends Controller
 
             return [
                 'metrics' => [
-                    'gmv' => [
-                        'value' => $currentMonthGMV,
-                        'growth' => round($gmvGrowth, 1),
-                    ],
-                    'revenue' => [
-                        'value' => $currentMonthRevenue,
-                        'growth' => round($revenueGrowth, 1),
-                    ],
                     'users' => [
                         'value' => $totalUsers,
                         'growth' => round($userGrowth, 1),
@@ -102,6 +77,10 @@ class AdminDashboardController extends Controller
                     'shops' => [
                         'value' => $totalShops,
                         'growth' => 0, // Pas d'historique simple pour les boutiques dans cet exemple
+                    ],
+                    'products' => [
+                        'value' => $totalProducts,
+                        'growth' => round($productGrowth, 1),
                     ]
                 ],
                 'charts' => [
@@ -140,7 +119,7 @@ class AdminDashboardController extends Controller
                 'id' => 'order_'.$order->id,
                 'type' => 'order',
                 'title' => 'Nouvelle commande',
-                'description' => 'Commande #'.$order->id.' passée pour '.$order->total_amount.' XOF.',
+                'description' => 'Commande #'.$order->id.' passée par '.$order->email,
                 'time' => $order->created_at->diffForHumans(),
                 'created_at' => $order->created_at
             ];

@@ -83,7 +83,7 @@ class AuthController extends Controller
         $request->user()->currentAccessToken()->delete();
 
         return response()->json([
-            'message' => 'Déconnecté avec succès'
+            'message' => __('api.d_connect_avec_succ_s')
         ]);
     }
 

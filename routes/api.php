@@ -22,11 +22,6 @@ Route::get('/public/products/{id}', [App\Http\Controllers\PublicController::clas
 Route::get('/public/funnel/{shopSlug}/{productSlug}', [\App\Http\Controllers\FunnelController::class, 'getFunnelData']);
 Route::post('/public/shops/onboard', [App\Http\Controllers\ShopController::class, 'onboardGuest']);
 
-// Checkout (Public & Authentifié)
-Route::post('/checkout', [App\Http\Controllers\OrderController::class, 'checkout']);
-Route::post('/checkout/validate-promo', [App\Http\Controllers\PromoCodeController::class, 'validateCode']);
-Route::get('/checkout/success-details/{id}', [App\Http\Controllers\OrderController::class, 'successDetails']);
-Route::get('/checkout/success-invoice/{id}', [App\Http\Controllers\OrderController::class, 'publicDownloadInvoice']);
 
 // Téléchargements Sécurisés (Tokens)
 Route::get('/downloads/{token}', [App\Http\Controllers\DownloadController::class, 'download']);
@@ -54,7 +49,7 @@ Route::middleware('auth:sanctum')->group(function () {
     
     // Paramètres de la boutique
     Route::put('/vendor/shop/settings', [ShopController::class, 'updateSettings']);
-    Route::put('/vendor/shop/billing', [ShopController::class, 'updateBilling']);
+
 
     // Gestion des produits
     Route::post('/vendor/products/reorder', [App\Http\Controllers\ProductController::class, 'reorderProducts']);
@@ -73,18 +68,18 @@ Route::middleware('auth:sanctum')->group(function () {
     // Boutique du vendeur (Gestion)
     Route::get('/my-shop', [ShopController::class, 'myShop']);
     Route::post('/my-shop/update', [ShopController::class, 'update']);
-    Route::put('/vendor/shop/billing', [ShopController::class, 'updateBilling']);
     Route::put('/vendor/shop/settings', [ShopController::class, 'updateSettings']);
 
     // Commandes du vendeur
     Route::get('/seller/stats', [App\Http\Controllers\OrderController::class, 'getSellerStats']);
     Route::get('/seller/orders', [App\Http\Controllers\OrderController::class, 'getSellerOrders']);
 
+
+
     // Espace Acheteur (commandes + téléchargements + litiges)
     Route::get('/buyer/stats', [App\Http\Controllers\OrderController::class, 'getBuyerStats']);
     Route::get('/buyer/orders', [App\Http\Controllers\OrderController::class, 'getBuyerOrders']);
     Route::get('/buyer/orders/{orderId}/download/{productId}', [App\Http\Controllers\OrderController::class, 'downloadDigitalProduct']);
-    Route::get('/buyer/orders/{orderId}/invoice', [App\Http\Controllers\OrderController::class, 'downloadInvoice']);
     Route::get('/buyer/downloads', [\App\Http\Controllers\BuyerController::class, 'myDownloads']);
 
 

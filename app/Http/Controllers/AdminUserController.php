@@ -22,7 +22,7 @@ class AdminUserController extends Controller
     public function index(Request $request)
     {
         if (!$request->user()->hasAnyRole(['Administrateur', 'Super-Administrateur'])) {
-            return response()->json(['message' => 'Accès non autorisé.'], 403);
+            return response()->json(['message' => __('api.acc_s_non_autoris')], 403);
         }
 
         $query = User::with('roles');
@@ -58,18 +58,18 @@ class AdminUserController extends Controller
     public function toggleBlock(Request $request, $id)
     {
         if (!$request->user()->hasAnyRole(['Administrateur', 'Super-Administrateur'])) {
-            return response()->json(['message' => 'Accès non autorisé.'], 403);
+            return response()->json(['message' => __('api.acc_s_non_autoris')], 403);
         }
 
         if ($request->user()->id == $id) {
-            return response()->json(['message' => 'Vous ne pouvez pas vous bloquer vous-même.'], 400);
+            return response()->json(['message' => __('api.vous_ne_pouvez_pas_vous_bloque')], 400);
         }
 
         $user = User::findOrFail($id);
         
         // Empêcher de bloquer un super-admin si on n'est pas super-admin
         if ($user->hasRole('Super-Administrateur') && !$request->user()->hasRole('Super-Administrateur')) {
-            return response()->json(['message' => 'Vous ne pouvez pas bloquer un Super-Administrateur.'], 403);
+            return response()->json(['message' => __('api.vous_ne_pouvez_pas_bloquer_un_')], 403);
         }
 
         try {
@@ -79,7 +79,7 @@ class AdminUserController extends Controller
             AuditLogService::log($action, $updatedUser, ['user_name' => $updatedUser->name, 'email' => $updatedUser->email]);
             return response()->json(['message' => $message, 'user' => $updatedUser->load('roles')]);
         } catch (\Exception $e) {
-            return response()->json(['message' => 'Erreur lors de la modification du statut.'], 500);
+            return response()->json(['message' => __('api.erreur_lors_de_la_modification')], 500);
         }
     }
 
@@ -89,11 +89,11 @@ class AdminUserController extends Controller
     public function syncRoles(Request $request, $id)
     {
         if (!$request->user()->hasRole('Super-Administrateur')) {
-            return response()->json(['message' => 'Seul un Super-Administrateur peut modifier les rôles.'], 403);
+            return response()->json(['message' => __('api.seul_un_super_administrateur_p')], 403);
         }
 
         if ($request->user()->id == $id) {
-            return response()->json(['message' => 'Vous ne pouvez pas modifier vos propres rôles depuis cette interface.'], 400);
+            return response()->json(['message' => __('api.vous_ne_pouvez_pas_modifier_vo')], 400);
         }
 
         $request->validate([
@@ -106,9 +106,9 @@ class AdminUserController extends Controller
         try {
             $updatedUser = $this->adminUserService->syncRoles($user, $request->roles);
             AuditLogService::log('user.roles_changed', $updatedUser, ['user_name' => $updatedUser->name, 'new_roles' => $request->roles]);
-            return response()->json(['message' => 'Rôles mis à jour avec succès.', 'user' => $updatedUser->load('roles')]);
+            return response()->json(['message' => __('api.r_les_mis_jour_avec_succ_s'), 'user' => $updatedUser->load('roles')]);
         } catch (\Exception $e) {
-            return response()->json(['message' => 'Erreur lors de la mise à jour des rôles.'], 500);
+            return response()->json(['message' => __('api.erreur_lors_de_la_mise_jour_de')], 500);
         }
     }
 }

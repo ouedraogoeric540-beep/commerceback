@@ -21,13 +21,13 @@ class DownloadController extends Controller
         $token = DownloadToken::where('token', $tokenStr)->with('orderItem.product')->first();
 
         if (!$token || !$token->isValid()) {
-            return response()->json(['message' => 'Lien de téléchargement invalide ou expiré.'], 403);
+            return response()->json(['message' => __('api.lien_de_t_l_chargement_invalid')], 403);
         }
 
         $product = $token->orderItem->product;
 
         if (!$product || !$product->digital_file || !Storage::exists($product->digital_file)) {
-            return response()->json(['message' => 'Le fichier est introuvable sur le serveur.'], 404);
+            return response()->json(['message' => __('api.le_fichier_est_introuvable_sur')], 404);
         }
 
         // Record the download

@@ -18,7 +18,7 @@ class FunnelController extends Controller
             ->first();
 
         if (!$shop) {
-            return response()->json(['message' => 'Boutique introuvable ou non approuvée.'], 404);
+            return response()->json(['message' => __('api.boutique_introuvable_ou_non_ap')], 404);
         }
 
         $product = Product::where('shop_id', $shop->id)
@@ -27,7 +27,7 @@ class FunnelController extends Controller
             ->first();
 
         if (!$product) {
-            return response()->json(['message' => 'Produit introuvable.'], 404);
+            return response()->json(['message' => __('api.produit_introuvable')], 404);
         }
 
         // Get some other top products of this shop as potential recommendations

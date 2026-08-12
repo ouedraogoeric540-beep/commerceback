@@ -22,7 +22,7 @@ class KycController extends Controller
         $shop = $user->shop;
 
         if (!$shop) {
-            return response()->json(['message' => 'Vous n\'avez pas de boutique.'], 403);
+            return response()->json(['message' => __('api.vous_navez_pas_de_boutique')], 403);
         }
 
         // Pour le MVP, on stocke dans 'public' pour pouvoir les afficher facilement via URL
@@ -43,7 +43,7 @@ class KycController extends Controller
         }
 
         return response()->json([
-            'message' => 'Document soumis avec succès.',
+            'message' => __('api.document_soumis_avec_succ_s'),
             'kyc' => $kyc,
             'shop' => $shop->load('kycDocuments')
         ], 201);

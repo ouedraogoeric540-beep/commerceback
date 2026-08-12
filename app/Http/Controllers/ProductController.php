@@ -117,7 +117,7 @@ class ProductController extends Controller
             DB::commit();
 
             return response()->json([
-                'message' => 'Produit ajouté avec succès.',
+                'message' => __('api.produit_ajout_avec_succ_s'),
                 'product' => $product
             ], 201);
         } catch (\Exception $e) {
@@ -133,7 +133,7 @@ class ProductController extends Controller
                 Log::info("Fichier orphelin supprimé suite à erreur de création (digital): {$digitalFilePath}");
             }
 
-            return response()->json(['message' => 'Erreur lors de la création du produit.'], 500);
+            return response()->json(['message' => __('api.erreur_lors_de_la_cr_ation_du_')], 500);
         }
     }
 
@@ -160,7 +160,7 @@ class ProductController extends Controller
         }
 
         return response()->json([
-            'message' => 'Ordre des produits mis à jour.'
+            'message' => __('api.ordre_des_produits_mis_jour')
         ]);
     }
 
@@ -263,7 +263,7 @@ class ProductController extends Controller
             DB::commit();
 
             return response()->json([
-                'message' => 'Produit mis à jour avec succès.',
+                'message' => __('api.produit_mis_jour_avec_succ_s'),
                 'product' => $product
             ]);
         } catch (\Exception $e) {
@@ -278,7 +278,7 @@ class ProductController extends Controller
                 Log::info("Fichier numérique orphelin supprimé (rollback) : {$newDigitalFilePath}");
             }
 
-            return response()->json(['message' => 'Erreur lors de la mise à jour du produit.'], 500);
+            return response()->json(['message' => __('api.erreur_lors_de_la_mise_jour_du')], 500);
         }
     }
 
@@ -315,7 +315,7 @@ class ProductController extends Controller
             DB::commit();
 
             return response()->json([
-                'message' => 'Produit supprimé avec succès.'
+                'message' => __('api.produit_supprim_avec_succ_s')
             ]);
         } catch (\Exception $e) {
             DB::rollBack();

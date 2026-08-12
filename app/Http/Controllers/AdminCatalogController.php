@@ -21,7 +21,7 @@ class AdminCatalogController extends Controller
     public function getCategories(Request $request)
     {
         if (!$request->user()->hasAnyRole(['Administrateur', 'Super-Administrateur'])) {
-            return response()->json(['message' => 'Accès non autorisé.'], 403);
+            return response()->json(['message' => __('api.acc_s_non_autoris')], 403);
         }
         
         // Return tree structure
@@ -35,7 +35,7 @@ class AdminCatalogController extends Controller
     public function storeCategory(Request $request)
     {
         if (!$request->user()->hasAnyRole(['Administrateur', 'Super-Administrateur'])) {
-            return response()->json(['message' => 'Accès non autorisé.'], 403);
+            return response()->json(['message' => __('api.acc_s_non_autoris')], 403);
         }
 
         $request->validate([
@@ -46,13 +46,13 @@ class AdminCatalogController extends Controller
 
         $category = $this->catalogService->createCategory($request->only(['name', 'parent_id', 'is_active']));
         
-        return response()->json(['message' => 'Catégorie créée avec succès.', 'category' => $category], 201);
+        return response()->json(['message' => __('api.cat_gorie_cr_e_avec_succ_s'), 'category' => $category], 201);
     }
 
     public function updateCategory(Request $request, $id)
     {
         if (!$request->user()->hasAnyRole(['Administrateur', 'Super-Administrateur'])) {
-            return response()->json(['message' => 'Accès non autorisé.'], 403);
+            return response()->json(['message' => __('api.acc_s_non_autoris')], 403);
         }
 
         $category = GlobalCategory::findOrFail($id);
@@ -65,12 +65,12 @@ class AdminCatalogController extends Controller
 
         // Prevent self-parenting
         if ($request->parent_id == $id) {
-            return response()->json(['message' => 'Une catégorie ne peut pas être son propre parent.'], 422);
+            return response()->json(['message' => __('api.une_cat_gorie_ne_peut_pas_tre_')], 422);
         }
 
         $category = $this->catalogService->updateCategory($category, $request->only(['name', 'parent_id', 'is_active']));
         
-        return response()->json(['message' => 'Catégorie mise à jour.', 'category' => $category]);
+        return response()->json(['message' => __('api.cat_gorie_mise_jour'), 'category' => $category]);
     }
 
     // --- PRODUCTS ---
@@ -78,7 +78,7 @@ class AdminCatalogController extends Controller
     public function getProducts(Request $request)
     {
         if (!$request->user()->hasAnyRole(['Administrateur', 'Super-Administrateur'])) {
-            return response()->json(['message' => 'Accès non autorisé.'], 403);
+            return response()->json(['message' => __('api.acc_s_non_autoris')], 403);
         }
 
         $query = Product::with(['shop', 'globalCategory']);
@@ -100,7 +100,7 @@ class AdminCatalogController extends Controller
     public function toggleProductSuspension(Request $request, $id)
     {
         if (!$request->user()->hasAnyRole(['Administrateur', 'Super-Administrateur'])) {
-            return response()->json(['message' => 'Accès non autorisé.'], 403);
+            return response()->json(['message' => __('api.acc_s_non_autoris')], 403);
         }
 
         $product = Product::findOrFail($id);
@@ -110,7 +110,7 @@ class AdminCatalogController extends Controller
             $msg = $product->status === 'suspended' ? 'Produit suspendu.' : 'Produit réactivé.';
             return response()->json(['message' => $msg, 'product' => $product->load(['shop', 'globalCategory'])]);
         } catch (\Exception $e) {
-            return response()->json(['message' => 'Erreur lors de la suspension.'], 500);
+            return response()->json(['message' => __('api.erreur_lors_de_la_suspension')], 500);
         }
     }
 

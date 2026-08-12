@@ -17,7 +17,7 @@ class PublicController extends Controller
                     ->first();
                     
         if (!$shop) {
-            return response()->json(['message' => 'Boutique introuvable ou non approuvée.'], 404);
+            return response()->json(['message' => __('api.boutique_introuvable_ou_non_ap')], 404);
         }
 
         // Charger les produits actifs
@@ -34,7 +34,7 @@ class PublicController extends Controller
         $product = Product::with('shop')->where('is_active', true)->find($id);
 
         if (!$product || $product->shop->status !== 'approved') {
-            return response()->json(['message' => 'Produit introuvable.'], 404);
+            return response()->json(['message' => __('api.produit_introuvable')], 404);
         }
 
         return response()->json([

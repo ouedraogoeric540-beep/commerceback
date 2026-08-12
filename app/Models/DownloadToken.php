@@ -23,10 +23,7 @@ class DownloadToken extends Model
         return $this->belongsTo(OrderItem::class);
     }
 
-    public function logs()
-    {
-        return $this->hasMany(DownloadLog::class);
-    }
+
 
     public function isValid(): bool
     {
