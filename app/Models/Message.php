@@ -49,8 +49,8 @@ class Message extends Model
 
     public function getAttachmentUrlAttribute()
     {
-        return $this->attachment_path
-            ? asset('storage/' . $this->attachment_path)
-            : null;
+        if (!$this->attachment_path) return null;
+        if (str_starts_with($this->attachment_path, 'http')) return $this->attachment_path;
+        return app(\App\Contracts\StorageServiceInterface::class)->temporaryUrl('user-files', $this->attachment_path, 3600);
     }
 }

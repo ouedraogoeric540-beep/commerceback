@@ -3,17 +3,21 @@
 namespace App\Http\Controllers;
 
 use App\Models\Shop;
+use App\Models\KycDocument;
 use App\Services\KycService;
 use App\Services\AuditLogService;
+use App\Contracts\StorageServiceInterface;
 use Illuminate\Http\Request;
 
 class AdminKycController extends Controller
 {
     protected $kycService;
+    protected StorageServiceInterface $storage;
 
-    public function __construct(KycService $kycService)
+    public function __construct(KycService $kycService, StorageServiceInterface $storage)
     {
         $this->kycService = $kycService;
+        $this->storage = $storage;
     }
 
     /**
@@ -105,5 +109,31 @@ class AdminKycController extends Controller
         } catch (\Exception $e) {
             return response()->json(['message' => __('api.erreur_lors_du_rejet')], 500);
         }
+    }
+
+    /**
+     * Voir un document KYC (Génère une URL signée)
+     */
+    public function viewDocument(Request $request, $id, $side)
+    {
+        if (!$request->user()->hasAnyRole(['Administrateur', 'Super-Administrateur'])) {
+            return response()->json(['message' => __('api.acc_s_non_autoris')], 403);
+        }
+
+        $kyc = KycDocument::findOrFail($id);
+        
+        $path = $side === 'recto' ? $kyc->document_recto : $kyc->document_verso;
+
+        if (!$path || !$this->storage->exists('user-files', $path)) {
+            return response()->json(['message' => __('api.file_not_found')], 404);
+        }
+
+        $url = $this->storage->temporaryUrl('user-files', $path, 60);
+
+        if (!$url) {
+            return response()->json(['message' => __('api.erreur_lors_de_la_g_n_ration_d')], 500);
+        }
+
+        return redirect()->away($url);
     }
 }

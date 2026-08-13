@@ -4,9 +4,18 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\KycDocument;
+use App\Contracts\StorageServiceInterface;
+use Illuminate\Support\Str;
 
 class KycController extends Controller
 {
+    protected StorageServiceInterface $storage;
+
+    public function __construct(StorageServiceInterface $storage)
+    {
+        $this->storage = $storage;
+    }
+
     /**
      * Soumettre un document KYC
      */
@@ -25,10 +34,18 @@ class KycController extends Controller
             return response()->json(['message' => __('api.vous_navez_pas_de_boutique')], 403);
         }
 
-        // Pour le MVP, on stocke dans 'public' pour pouvoir les afficher facilement via URL
-        // En production, on utiliserait un disque privé S3 avec des Signed URLs.
-        $rectoPath = $request->file('document_recto')->store('kyc', 'public');
-        $versoPath = $request->hasFile('document_verso') ? $request->file('document_verso')->store('kyc', 'public') : null;
+        $rectoFile = $request->file('document_recto');
+        $rectoName = Str::random(10) . '.' . $rectoFile->getClientOriginalExtension();
+        $rectoPath = "users/{$user->id}/kyc/{$rectoName}";
+        $this->storage->upload('user-files', $rectoPath, $rectoFile);
+
+        $versoPath = null;
+        if ($request->hasFile('document_verso')) {
+            $versoFile = $request->file('document_verso');
+            $versoName = Str::random(10) . '.' . $versoFile->getClientOriginalExtension();
+            $versoPath = "users/{$user->id}/kyc/{$versoName}";
+            $this->storage->upload('user-files', $versoPath, $versoFile);
+        }
 
         $kyc = KycDocument::create([
             'shop_id' => $shop->id,

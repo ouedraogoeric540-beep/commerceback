@@ -19,6 +19,8 @@ class User extends Authenticatable
     /** @use HasFactory<UserFactory> */
     use HasApiTokens, HasFactory, Notifiable, HasRoles;
 
+    protected $guard_name = 'web';
+
     /**
      * Get the attributes that should be cast.
      *
@@ -31,6 +33,15 @@ class User extends Authenticatable
             'password' => 'hashed',
             'notification_preferences' => 'array',
         ];
+    }
+
+    protected $appends = ['avatar_url'];
+
+    public function getAvatarUrlAttribute()
+    {
+        if (!$this->avatar) return null;
+        if (str_starts_with($this->avatar, 'http')) return $this->avatar;
+        return app(\App\Contracts\StorageServiceInterface::class)->publicUrl('public-assets', $this->avatar);
     }
 
     public function shop()

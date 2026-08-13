@@ -12,7 +12,10 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->app->bind(
+            \App\Contracts\StorageServiceInterface::class,
+            \App\Services\Storage\SupabaseStorageService::class
+        );
     }
 
     /**

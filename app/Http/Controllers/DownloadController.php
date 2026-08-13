@@ -5,15 +5,17 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\DownloadToken;
 use App\Services\DownloadService;
-use Illuminate\Support\Facades\Storage;
+use App\Contracts\StorageServiceInterface;
 
 class DownloadController extends Controller
 {
     protected DownloadService $downloadService;
+    protected StorageServiceInterface $storage;
 
-    public function __construct(DownloadService $downloadService)
+    public function __construct(DownloadService $downloadService, StorageServiceInterface $storage)
     {
         $this->downloadService = $downloadService;
+        $this->storage = $storage;
     }
 
     public function download(Request $request, $tokenStr)
@@ -26,16 +28,20 @@ class DownloadController extends Controller
 
         $product = $token->orderItem->product;
 
-        if (!$product || !$product->digital_file || !Storage::exists($product->digital_file)) {
+        if (!$product || !$product->digital_file || !$this->storage->exists('digital-products', $product->digital_file)) {
             return response()->json(['message' => __('api.le_fichier_est_introuvable_sur')], 404);
         }
 
         // Record the download
         $this->downloadService->recordDownload($token, $request->ip(), $request->userAgent());
 
-        $extension = pathinfo($product->digital_file, PATHINFO_EXTENSION);
-        $downloadName = $product->slug . '.' . $extension;
+        // Generate signed URL valid for 60 seconds
+        $url = $this->storage->temporaryUrl('digital-products', $product->digital_file, 60);
+        
+        if (!$url) {
+            return response()->json(['message' => __('api.erreur_lors_de_la_g_n_ration_d')], 500);
+        }
 
-        return Storage::download($product->digital_file, $downloadName);
+        return redirect()->away($url);
     }
 }

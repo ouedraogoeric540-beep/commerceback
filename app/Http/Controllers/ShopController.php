@@ -9,9 +9,16 @@ use App\Models\KycDocument;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
+use App\Contracts\StorageServiceInterface;
 
 class ShopController extends Controller
 {
+    protected StorageServiceInterface $storage;
+
+    public function __construct(StorageServiceInterface $storage)
+    {
+        $this->storage = $storage;
+    }
     /**
      * Création de la boutique (Onboarding)
      */
@@ -47,7 +54,11 @@ class ShopController extends Controller
         ]);
 
         if ($request->hasFile('logo')) {
-            $shop->logo = $request->file('logo')->store('logos', 'public');
+            $file = $request->file('logo');
+            $filename = Str::random(10) . '.' . $file->getClientOriginalExtension();
+            $path = "shops/{$shop->id}/logos/{$filename}";
+            $this->storage->upload('public-assets', $path, $file);
+            $shop->logo = $path;
         }
 
         if ($request->filled('primary_color')) {
@@ -56,8 +67,18 @@ class ShopController extends Controller
 
         $shop->save();
 
-        $rectoPath = $request->file('document_recto')->store('kyc', 'public');
-        $versoPath = $request->hasFile('document_verso') ? $request->file('document_verso')->store('kyc', 'public') : null;
+        $rectoFile = $request->file('document_recto');
+        $rectoName = Str::random(10) . '.' . $rectoFile->getClientOriginalExtension();
+        $rectoPath = "users/{$user->id}/kyc/{$rectoName}";
+        $this->storage->upload('user-files', $rectoPath, $rectoFile);
+
+        $versoPath = null;
+        if ($request->hasFile('document_verso')) {
+            $versoFile = $request->file('document_verso');
+            $versoName = Str::random(10) . '.' . $versoFile->getClientOriginalExtension();
+            $versoPath = "users/{$user->id}/kyc/{$versoName}";
+            $this->storage->upload('user-files', $versoPath, $versoFile);
+        }
 
         KycDocument::create([
             'shop_id' => $shop->id,
@@ -122,7 +143,11 @@ class ShopController extends Controller
             ]);
 
             if ($request->hasFile('logo')) {
-                $shop->logo = $request->file('logo')->store('logos', 'public');
+                $file = $request->file('logo');
+                $filename = Str::random(10) . '.' . $file->getClientOriginalExtension();
+                $path = "shops/{$shop->id}/logos/{$filename}";
+                $this->storage->upload('public-assets', $path, $file);
+                $shop->logo = $path;
             }
 
             if ($request->filled('primary_color')) {
@@ -131,8 +156,18 @@ class ShopController extends Controller
 
             $shop->save();
 
-            $rectoPath = $request->file('document_recto')->store('kyc', 'public');
-            $versoPath = $request->hasFile('document_verso') ? $request->file('document_verso')->store('kyc', 'public') : null;
+            $rectoFile = $request->file('document_recto');
+            $rectoName = Str::random(10) . '.' . $rectoFile->getClientOriginalExtension();
+            $rectoPath = "users/{$user->id}/kyc/{$rectoName}";
+            $this->storage->upload('user-files', $rectoPath, $rectoFile);
+
+            $versoPath = null;
+            if ($request->hasFile('document_verso')) {
+                $versoFile = $request->file('document_verso');
+                $versoName = Str::random(10) . '.' . $versoFile->getClientOriginalExtension();
+                $versoPath = "users/{$user->id}/kyc/{$versoName}";
+                $this->storage->upload('user-files', $versoPath, $versoFile);
+            }
 
             KycDocument::create([
                 'shop_id' => $shop->id,
@@ -217,13 +252,29 @@ class ShopController extends Controller
         $shop->vat_number = $request->vat_number;
 
         if ($request->hasFile('logo')) {
-            $logoPath = $request->file('logo')->store('logos', 'public');
-            $shop->logo = $logoPath;
+                $file = $request->file('logo');
+                $filename = Str::random(10) . '.' . $file->getClientOriginalExtension();
+                $logoPath = "shops/{$shop->id}/logos/{$filename}";
+                
+                $this->storage->upload('public-assets', $logoPath, $file);
+                
+                if ($shop->logo) {
+                    $this->storage->delete('public-assets', $shop->logo);
+                }
+                $shop->logo = $logoPath;
         }
 
         if ($request->hasFile('cover')) {
-            $coverPath = $request->file('cover')->store('covers', 'public');
-            $shop->cover = $coverPath;
+                $file = $request->file('cover');
+                $filename = Str::random(10) . '.' . $file->getClientOriginalExtension();
+                $coverPath = "shops/{$shop->id}/covers/{$filename}";
+                
+                $this->storage->upload('public-assets', $coverPath, $file);
+                
+                if ($shop->cover) {
+                    $this->storage->delete('public-assets', $shop->cover);
+                }
+                $shop->cover = $coverPath;
         }
 
         $shop->save();

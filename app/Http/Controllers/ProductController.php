@@ -8,9 +8,17 @@ use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use App\Contracts\StorageServiceInterface;
 
 class ProductController extends Controller
 {
+    protected StorageServiceInterface $storage;
+
+    public function __construct(StorageServiceInterface $storage)
+    {
+        $this->storage = $storage;
+    }
+
     public function index(Request $request)
     {
         $shop = $request->user()->shop;
@@ -91,15 +99,6 @@ class ProductController extends Controller
         try {
             DB::beginTransaction();
 
-            if ($request->hasFile('cover_image')) {
-                $coverPath = $request->file('cover_image')->store('products/covers', 'public');
-            }
-
-            if ($request->hasFile('digital_file')) {
-                // Stockage PRIVÉ pour le fichier numérique
-                $digitalFilePath = $request->file('digital_file')->store('products/digital_files');
-            }
-
             $product = Product::create([
                 'shop_id' => $shop->id,
                 'product_type' => $request->product_type,
@@ -108,11 +107,29 @@ class ProductController extends Controller
                 'description' => $request->description,
                 'price' => $request->price,
                 'stock' => $request->stock,
-                'cover_image' => $coverPath,
-                'digital_file' => $digitalFilePath,
                 'attributes' => $request->input('attributes') ? json_decode($request->input('attributes'), true) : null,
                 'is_active' => true,
             ]);
+
+            if ($request->hasFile('cover_image')) {
+                $file = $request->file('cover_image');
+                $filename = Str::random(10) . '.' . $file->getClientOriginalExtension();
+                $coverPath = "products/{$product->id}/covers/{$filename}";
+                $this->storage->upload('product-images', $coverPath, $file);
+                $product->cover_image = $coverPath;
+            }
+
+            if ($request->hasFile('digital_file')) {
+                $file = $request->file('digital_file');
+                $filename = Str::random(10) . '.' . $file->getClientOriginalExtension();
+                $digitalFilePath = "products/{$product->id}/files/{$filename}";
+                $this->storage->upload('digital-products', $digitalFilePath, $file);
+                $product->digital_file = $digitalFilePath;
+            }
+
+            if ($coverPath || $digitalFilePath) {
+                $product->save();
+            }
 
             DB::commit();
 
@@ -123,14 +140,11 @@ class ProductController extends Controller
         } catch (\Exception $e) {
             DB::rollBack();
 
-            // Nettoyage des fichiers temporaires
             if ($coverPath) {
-                Storage::disk('public')->delete($coverPath);
-                Log::info("Fichier orphelin supprimé suite à erreur de création (cover): {$coverPath}");
+                $this->storage->delete('product-images', $coverPath);
             }
             if ($digitalFilePath) {
-                Storage::delete($digitalFilePath);
-                Log::info("Fichier orphelin supprimé suite à erreur de création (digital): {$digitalFilePath}");
+                $this->storage->delete('digital-products', $digitalFilePath);
             }
 
             return response()->json(['message' => __('api.erreur_lors_de_la_cr_ation_du_')], 500);
@@ -235,19 +249,27 @@ class ProductController extends Controller
             DB::beginTransaction();
 
             if ($request->hasFile('cover_image')) {
-                $newCoverPath = $request->file('cover_image')->store('products/covers', 'public');
+                $file = $request->file('cover_image');
+                $filename = Str::random(10) . '.' . $file->getClientOriginalExtension();
+                $newCoverPath = "products/{$product->id}/covers/{$filename}";
+                
+                $this->storage->upload('product-images', $newCoverPath, $file);
+                
                 if ($product->cover_image) {
-                    Storage::disk('public')->delete($product->cover_image);
-                    Log::info("Ancienne image de couverture supprimée (mise à jour) : {$product->cover_image}");
+                    $this->storage->delete('product-images', $product->cover_image);
                 }
                 $product->cover_image = $newCoverPath;
             }
 
             if ($request->hasFile('digital_file')) {
-                $newDigitalFilePath = $request->file('digital_file')->store('products/digital_files');
+                $file = $request->file('digital_file');
+                $filename = Str::random(10) . '.' . $file->getClientOriginalExtension();
+                $newDigitalFilePath = "products/{$product->id}/files/{$filename}";
+                
+                $this->storage->upload('digital-products', $newDigitalFilePath, $file);
+                
                 if ($product->digital_file) {
-                    Storage::delete($product->digital_file);
-                    Log::info("Ancien fichier numérique supprimé (mise à jour) : {$product->digital_file}");
+                    $this->storage->delete('digital-products', $product->digital_file);
                 }
                 $product->digital_file = $newDigitalFilePath;
             }
@@ -270,12 +292,10 @@ class ProductController extends Controller
             DB::rollBack();
 
             if ($newCoverPath) {
-                Storage::disk('public')->delete($newCoverPath);
-                Log::info("Image de couverture orpheline supprimée (rollback) : {$newCoverPath}");
+                $this->storage->delete('product-images', $newCoverPath);
             }
             if ($newDigitalFilePath) {
-                Storage::delete($newDigitalFilePath);
-                Log::info("Fichier numérique orphelin supprimé (rollback) : {$newDigitalFilePath}");
+                $this->storage->delete('digital-products', $newDigitalFilePath);
             }
 
             return response()->json(['message' => __('api.erreur_lors_de_la_mise_jour_du')], 500);
@@ -303,13 +323,11 @@ class ProductController extends Controller
             $product->delete();
 
             if ($coverImage) {
-                Storage::disk('public')->delete($coverImage);
-                Log::info("Image de couverture supprimée (suppression produit) : {$coverImage}");
+                $this->storage->delete('product-images', $coverImage);
             }
 
             if ($digitalFile) {
-                Storage::delete($digitalFile);
-                Log::info("Fichier numérique supprimé (suppression produit) : {$digitalFile}");
+                $this->storage->delete('digital-products', $digitalFile);
             }
 
             DB::commit();

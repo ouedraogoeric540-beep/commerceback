@@ -18,6 +18,15 @@ class Product extends Model
         'price' => 'decimal:2',
     ];
 
+    protected $appends = ['cover_image_url'];
+
+    public function getCoverImageUrlAttribute()
+    {
+        if (!$this->cover_image) return null;
+        if (str_starts_with($this->cover_image, 'http')) return $this->cover_image;
+        return app(\App\Contracts\StorageServiceInterface::class)->publicUrl('product-images', $this->cover_image);
+    }
+
     public function shop()
     {
         return $this->belongsTo(Shop::class);

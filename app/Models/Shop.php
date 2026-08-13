@@ -17,6 +17,22 @@ class Shop extends Model
         'settings' => 'array',
     ];
 
+    protected $appends = ['logo_url', 'cover_url'];
+
+    public function getLogoUrlAttribute()
+    {
+        if (!$this->logo) return null;
+        if (str_starts_with($this->logo, 'http')) return $this->logo;
+        return app(\App\Contracts\StorageServiceInterface::class)->publicUrl('public-assets', $this->logo);
+    }
+
+    public function getCoverUrlAttribute()
+    {
+        if (!$this->cover) return null;
+        if (str_starts_with($this->cover, 'http')) return $this->cover;
+        return app(\App\Contracts\StorageServiceInterface::class)->publicUrl('public-assets', $this->cover);
+    }
+
     public function user()
     {
         return $this->belongsTo(User::class);

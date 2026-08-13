@@ -14,17 +14,19 @@ use Illuminate\Support\Facades\Storage;
 use App\Models\User;
 use Barryvdh\DomPDF\Facade\Pdf;
 use App\Notifications\OrderPlacedNotification;
-use App\Notifications\NewOrderNotification;
 use App\Notifications\OutOfStockNotification;
 use App\Services\OrderStateMachineService;
+use App\Contracts\StorageServiceInterface;
 
 class OrderController extends Controller
 {
     protected OrderStateMachineService $stateMachine;
+    protected StorageServiceInterface $storage;
 
-    public function __construct(OrderStateMachineService $stateMachine)
+    public function __construct(OrderStateMachineService $stateMachine, StorageServiceInterface $storage)
     {
         $this->stateMachine = $stateMachine;
+        $this->storage = $storage;
     }
     public function checkout(Request $request)
     {
@@ -364,18 +366,19 @@ class OrderController extends Controller
             return response()->json(['message' => __('api.aucun_fichier_t_l_chargeable_p')], 404);
         }
 
-        // 4. Vérifier que le fichier existe physiquement sur le disque (stockage local privé)
-        if (!Storage::exists($product->digital_file)) {
+        // 4. Vérifier que le fichier existe physiquement sur le disque
+        if (!$this->storage->exists('digital-products', $product->digital_file)) {
             return response()->json(['message' => __('api.file_not_found')], 404);
         }
 
-        // 5. Télécharger le fichier
-        // On récupère l'extension originale du fichier
-        $extension = pathinfo($product->digital_file, PATHINFO_EXTENSION);
-        // Nom du fichier sécurisé (slug du produit + extension)
-        $downloadName = $product->slug . '.' . $extension;
+        // 5. Télécharger le fichier via URL signée Supabase
+        $url = $this->storage->temporaryUrl('digital-products', $product->digital_file, 60);
 
-        return Storage::download($product->digital_file, $downloadName);
+        if (!$url) {
+            return response()->json(['message' => __('api.erreur_lors_de_la_g_n_ration_d')], 500);
+        }
+
+        return redirect()->away($url);
     }
 
 

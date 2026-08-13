@@ -40,4 +40,8 @@ return [
         'url' => env('EXCHANGERATE_API_URL', 'https://v6.exchangerate-api.com/v6'),
     ],
 
+    'supabase' => [
+        'url' => env('SUPABASE_URL'),
+        'key' => env('SUPABASE_SECRET_KEY'),
+    ],
 ];

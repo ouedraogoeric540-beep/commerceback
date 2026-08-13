@@ -5,9 +5,18 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
+use App\Contracts\StorageServiceInterface;
+use Illuminate\Support\Str;
 
 class ProfileController extends Controller
 {
+    protected StorageServiceInterface $storage;
+
+    public function __construct(StorageServiceInterface $storage)
+    {
+        $this->storage = $storage;
+    }
+
     public function updateProfile(Request $request)
     {
         $user = $request->user();
@@ -30,7 +39,15 @@ class ProfileController extends Controller
         }
 
         if ($request->hasFile('avatar')) {
-            $avatarPath = $request->file('avatar')->store('avatars', 'public');
+            $file = $request->file('avatar');
+            $filename = Str::random(10) . '.' . $file->getClientOriginalExtension();
+            $avatarPath = "users/{$user->id}/avatars/{$filename}";
+            
+            $this->storage->upload('public-assets', $avatarPath, $file);
+            
+            if ($user->avatar) {
+                $this->storage->delete('public-assets', $user->avatar);
+            }
             $user->avatar = $avatarPath;
         }
 

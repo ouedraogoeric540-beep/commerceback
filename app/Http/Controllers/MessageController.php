@@ -8,10 +8,17 @@ use App\Models\Shop;
 use App\Services\NotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Storage;
+use App\Contracts\StorageServiceInterface;
+use Illuminate\Support\Str;
 
 class MessageController extends Controller
 {
+    protected StorageServiceInterface $storage;
+
+    public function __construct(StorageServiceInterface $storage)
+    {
+        $this->storage = $storage;
+    }
     /**
      * Get all conversations for the authenticated user.
      * Works for both buyers and sellers.
@@ -145,7 +152,11 @@ class MessageController extends Controller
 
         if ($request->hasFile('attachment')) {
             $file = $request->file('attachment');
-            $attachmentPath = $file->store('messages/attachments', 'public');
+            $filename = Str::random(10) . '.' . $file->getClientOriginalExtension();
+            $attachmentPath = "users/{$user->id}/messages/{$filename}";
+            
+            $this->storage->upload('user-files', $attachmentPath, $file);
+            
             $attachmentName = $file->getClientOriginalName();
             $attachmentType = str_starts_with($file->getMimeType(), 'image/') ? 'image' : 'file';
         }
@@ -196,9 +207,7 @@ class MessageController extends Controller
         return response()->json($message, 201);
     }
 
-    /**
-     * Get total unread messages count for the authenticated user.
-     */
+
     public function unreadCount()
     {
         $user = Auth::user();
@@ -235,5 +244,29 @@ class MessageController extends Controller
         }
 
         return $conversation;
+    }
+
+    /**
+     * Download or view a message attachment securely
+     */
+    public function downloadAttachment(Request $request, $id)
+    {
+        $user = Auth::user();
+        $message = Message::findOrFail($id);
+
+        // Security check: ensure user belongs to the conversation
+        $this->getAuthorizedConversation($user, $message->conversation_id);
+
+        if (!$message->attachment_path || !$this->storage->exists('user-files', $message->attachment_path)) {
+            return response()->json(['message' => __('api.file_not_found')], 404);
+        }
+
+        $url = $this->storage->temporaryUrl('user-files', $message->attachment_path, 60);
+
+        if (!$url) {
+            return response()->json(['message' => __('api.erreur_lors_de_la_g_n_ration_d')], 500);
+        }
+
+        return redirect()->away($url);
     }
 }

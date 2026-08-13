@@ -103,6 +103,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/admin/kyc/history', [App\Http\Controllers\AdminKycController::class, 'history']);
     Route::post('/admin/kyc/{id}/approve', [App\Http\Controllers\AdminKycController::class, 'approve']);
     Route::post('/admin/kyc/{id}/reject', [App\Http\Controllers\AdminKycController::class, 'reject']);
+    Route::get('/admin/kyc/{id}/document/{side}', [App\Http\Controllers\AdminKycController::class, 'viewDocument']);
 
     // Administration (Utilisateurs)
     Route::get('/admin/users', [App\Http\Controllers\AdminUserController::class, 'index']);
@@ -129,6 +130,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/conversations', [App\Http\Controllers\MessageController::class, 'findOrCreate']);
     Route::get('/conversations/{id}/messages', [App\Http\Controllers\MessageController::class, 'messages']);
     Route::post('/conversations/{id}/messages', [App\Http\Controllers\MessageController::class, 'send']);
+    Route::get('/messages/attachment/{id}', [App\Http\Controllers\MessageController::class, 'downloadAttachment']);
 });
 
 // API Version 1 (Architecture Enterprise)
